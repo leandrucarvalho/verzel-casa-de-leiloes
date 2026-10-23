@@ -8,7 +8,7 @@ import { walletRouter } from "./routes/wallet.js";
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof HttpError) {
-    res.status(err.status).json({ error: err.code, message: err.message });
+    res.status(err.status).json({ error: err.code, message: err.message, ...err.details });
   } else if (err instanceof ZodError) {
     res.status(400).json({ error: "invalid_input", message: err.issues[0]?.message ?? "Dados inválidos." });
   } else {
