@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { pool } from "../db/pool.js";
+import { notifyLotChanged } from "./events.js";
 
 // Settles one lot if it is due. Idempotent: the lot row lock plus the status check
 // make a second call (job and lazy access racing) a no-op.
@@ -44,6 +45,7 @@ export async function settleLot(lotId: string): Promise<boolean> {
       ]);
     }
     await client.query("COMMIT");
+    notifyLotChanged(lotId);
     return true;
   } catch (err) {
     await client.query("ROLLBACK");

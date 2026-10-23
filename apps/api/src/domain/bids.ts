@@ -2,6 +2,7 @@ import type { PoolClient } from "pg";
 import { config } from "../config.js";
 import { pool } from "../db/pool.js";
 import { HttpError } from "../errors.js";
+import { notifyLotChanged } from "./events.js";
 import { GENESIS_HASH, hashBid } from "./hashChain.js";
 
 const SNIPING_WINDOW_MS = 2 * 60_000;
@@ -23,6 +24,7 @@ export async function placeBid(lotId: string, bidderId: string, amountCents: num
     await client.query("BEGIN");
     const result = await placeBidTx(client, lotId, bidderId, amountCents);
     await client.query("COMMIT");
+    notifyLotChanged(lotId);
     return result;
   } catch (err) {
     await client.query("ROLLBACK");
