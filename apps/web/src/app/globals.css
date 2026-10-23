@@ -1,26 +1,59 @@
 @import "tailwindcss";
 
+/* Dark mode follows the `dark` class on <html>, set by the theme toggle (or the system on first visit). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #faf7f2;
+  --surface: #ffffff;
+  --ink: #1d1814;
+  --muted: #6b6259;
+  --line: #e6dfd4;
+  --brass: #9a6b1f;
+  --brass-ink: #ffffff;
+  --live: #1f7a4d;
+  --danger: #b3261e;
+}
+
+.dark {
+  --paper: #14110f;
+  --surface: #1d1916;
+  --ink: #f3ede4;
+  --muted: #a39a8e;
+  --line: #322c26;
+  --brass: #d6a24a;
+  --brass-ink: #14110f;
+  --live: #4cc38a;
+  --danger: #f2877f;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brass: var(--brass);
+  --color-brass-ink: var(--brass-ink);
+  --color-live: var(--live);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-sans-loaded);
+  --font-serif: var(--font-serif-loaded);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans-loaded), system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif-loaded), Georgia, serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
 }
