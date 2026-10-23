@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../auth/middleware.js";
+import { placeBid } from "../domain/bids.js";
 import { cancelLot, createLot, getLot, listLots } from "../domain/lots.js";
 import { HttpError } from "../errors.js";
 
@@ -49,4 +50,15 @@ lotsRouter.post("/:id/cancel", requireAuth, requireRole("auctioneer"), async (re
   const id = z.uuid().safeParse(req.params.id);
   if (!id.success) throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
   res.json(await cancelLot(id.data, req.user!.id));
+});
+
+const bidSchema = z.object({
+  amountCents: z.number().int("O valor deve estar em centavos.").positive("Informe um valor maior que zero."),
+});
+
+lotsRouter.post("/:id/bids", requireAuth, requireRole("bidder"), async (req, res) => {
+  const id = z.uuid().safeParse(req.params.id);
+  if (!id.success) throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
+  const { amountCents } = bidSchema.parse(req.body);
+  res.status(201).json(await placeBid(id.data, req.user!.id, amountCents));
 });
