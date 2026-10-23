@@ -57,7 +57,7 @@ export function PanelView() {
         ) : (
           <ul className="mt-3 divide-y divide-line rounded-xl border border-line bg-surface">
             {data.lots.map((l) => {
-              const cancellable = (l.status === "scheduled" || l.status === "live") && l.bidCount === 0;
+              const cancellable = l.status === "scheduled" || l.status === "live";
               return (
                 <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
@@ -73,7 +73,12 @@ export function PanelView() {
                   </div>
                   {cancellable &&
                     (confirming === l.id ? (
-                      <span className="flex items-center gap-3 text-sm">
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                        {l.bidCount > 0 && (
+                          <span className="basis-full text-muted">
+                            O valor comprometido pelo líder ({formatBRL(l.currentBidCents ?? 0)}) será liberado e registrado como estorno.
+                          </span>
+                        )}
                         <button type="button" onClick={() => cancel(l.id)} className="font-medium text-danger underline underline-offset-4">
                           Confirmar cancelamento
                         </button>

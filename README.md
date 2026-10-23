@@ -99,7 +99,7 @@ Os testes da API precisam do Postgres do Docker. Eles criam e migram sozinhos um
 
 ### Papéis
 
-- **Leiloeiro:** busca obras no catálogo, cria lotes, cancela lotes sem lances e acompanha resultados e total recebido. Não dá lances.
+- **Leiloeiro:** busca obras no catálogo, cria lotes, cancela lotes (com ou sem lances) e acompanha resultados e total recebido. Não dá lances.
 - **Licitante:** deposita saldo simulado, dá lances, arremata e recebe comprovante.
 - **Visitante (sem login):** vê a vitrine, as salas, a auditoria e os comprovantes.
 
@@ -173,7 +173,7 @@ Resumo das rotas (todas em JSON):
 | `GET /wallet`, `POST /wallet/deposit` | licitante | carteira e depósito simulado |
 | `GET /lots/participating`, `GET /receipts` | licitante | meus lotes e arremates |
 | `GET /catalog/search?q=` | leiloeiro | busca no catálogo |
-| `POST /lots`, `POST /lots/:id/cancel`, `GET /lots/mine` | leiloeiro | criar, cancelar, resultados |
+| `POST /lots`, `POST /lots/:id/cancel`, `GET /lots/mine` | leiloeiro | criar, cancelar (com estorno), resultados |
 
 Dinheiro é sempre inteiro em centavos, nunca ponto flutuante.
 
@@ -187,7 +187,7 @@ Dinheiro é sempre inteiro em centavos, nunca ponto flutuante.
 ## Comportamentos que podem surpreender
 
 - **Primeira chamada lenta** na API (plano gratuito da Render dormindo), como descrito no topo.
-- **Cancelar lote** só é possível se ele não tiver lances. O cancelamento com estorno automático não foi implementado.
+- **Cancelar lote** é possível enquanto ele não terminou, mesmo com lances. Como o dinheiro só é *comprometido* durante o leilão (nada é debitado antes da liquidação), o estorno é a liberação do valor que o líder tinha comprometido, registrada no extrato como "Estorno". O saldo total não muda, e quem já tinha sido superado não recebe nada, porque já estava liberado. Lotes cancelados somem da vitrine e da auditoria pública.
 - **Depósito** é simulado, limitado a R$ 1.000.000,00 por vez, e só licitantes depositam.
 - **Eventos em tempo real** vivem na memória de um único processo. Com várias instâncias da API, o aviso instantâneo só chegaria a quem estivesse na mesma instância; o polling de 5 segundos cobre o resto. Para escalar, trocaria por Postgres `LISTEN/NOTIFY` ou Redis.
 - **Liquidação preguiçosa:** ler lotes, carteira ou comprovantes dispara a liquidação do que já venceu. É proposital, mas significa que essas leituras podem escrever no banco.
