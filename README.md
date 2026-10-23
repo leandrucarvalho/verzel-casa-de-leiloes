@@ -95,6 +95,29 @@ npm run build
 
 Os testes da API precisam do Postgres do Docker. Eles criam e migram sozinhos um banco isolado, `leilao_test`, e não tocam nos dados de desenvolvimento.
 
+## Roteiro para testar cada função
+
+Use o site publicado ou o ambiente local. As contas estão na tabela de demonstração acima. Para ver o tempo real, abra duas janelas, uma anônima, com contas diferentes.
+
+| Função | Onde | Como simular |
+|---|---|---|
+| Vitrine e busca | `/` | Alterne entre Ao vivo, Agendados e Encerrados e use o campo de busca por título. Lotes cancelados não aparecem. |
+| Cadastro e login | `/cadastro`, `/login` | Crie uma conta de licitante ou de leiloeiro. O olhinho mostra ou oculta a senha. |
+| Criar lote | `/painel` (leiloeiro) | Busque uma obra (ex.: `monet`), escolha, defina lance inicial, incremento, início e fim, e crie. |
+| Lote agendado | `/painel` | Crie um lote com início no futuro. Ele aparece em Agendados, e a sala mostra o campo de lance desabilitado ("ainda não começou"). |
+| Dar lance e feedback | `/lotes/[id]` (licitante) | Dê um lance válido. Depois tente: abaixo do mínimo, de novo como líder ("já está ganhando"), e um valor maior que o saldo disponível (saldo insuficiente). Cada recusa mostra a mensagem da API. |
+| Tempo real | `/lotes/[id]` em duas janelas | Dê um lance como Ana. Na janela do Bruno aparece o novo lance e "Você foi superado" sem recarregar. |
+| Saldo comprometido | `/carteira` | Antes e depois de liderar um lote: o comprometido sobe, e volta quando alguém cobre o lance. |
+| Depósito simulado | `/carteira` | Informe um valor, por exemplo `500,00`. |
+| Anti-sniping | `/painel` + `/lotes/[id]` | Crie um lote que termine em cerca de 3 minutos, dê um lance quando faltar menos de 2 minutos: o fim avança 2 minutos e a sala avisa. |
+| Liquidação e comprovante | `/painel` + `/arremates` | Crie um lote que termine em 2 a 3 minutos, dê um lance e espere. Ele passa para Encerrados, o saldo do vencedor é debitado, o leiloeiro recebe, e o comprovante aparece em Meus arremates. |
+| Comprovante público | `/comprovante/[token]` | Copie o link de compartilhamento em Meus arremates e abra em janela anônima, sem login. |
+| Auditoria pública | `/auditoria/[id]` (link na sala do lote) | Abra sem login. Mostra a cadeia de lances e o veredito "íntegro". |
+| Detectar adulteração | banco local + `/auditoria/[id]` | Só no ambiente local: `docker compose exec db psql -U leilao -c "update bids set amount_cents = amount_cents + 100 where lot_id = '<id>' and seq = 2"` e recarregue a auditoria. Ela passa a apontar o lance onde a cadeia se rompe. |
+| Cancelar lote com estorno | `/painel` + `/carteira` | Com um licitante liderando um lote, cancele-o no painel (há confirmação). O comprometido do líder é liberado e o extrato mostra "Estorno". |
+| Resultado e total recebido | `/painel` | Veja o resultado de cada lote e a soma dos vendidos. |
+| Modo escuro | cabeçalho | Botão de tema ao lado do login. |
+
 ## Como funciona
 
 ### Papéis
