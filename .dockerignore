@@ -4,4 +4,4 @@
 .git
 .github
 .env*
-apps/web
+docs
