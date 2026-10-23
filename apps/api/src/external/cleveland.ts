@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { HttpError } from "../errors.js";
 
-// Art Institute of Chicago public API. It sits behind Cloudflare, which challenges
-// requests without an identified user agent, so we always send one.
-const BASE = "https://api.artic.edu/api/v1/artworks/search";
-const USER_AGENT = "verzel-casa-de-leiloes/1.0 (teste tecnico)";
+// Cleveland Museum of Art Open Access API (CC0 works). It needs no key, allows browser
+// hotlinking of its images (the Art Institute of Chicago CDN does not) and returns the
+// whole artwork in one call, so a search is a single request.
+const BASE = "https://openaccess-api.clevelandart.org/api/artworks/";
 const TTL_MS = 10 * 60_000;
 const TIMEOUT_MS = 5_000;
 
@@ -20,16 +20,14 @@ const responseSchema = z.object({
     z.object({
       id: z.number(),
       title: z.string(),
-      image_id: z.string().nullable(),
-      artist_display: z.string().nullish(),
-      date_display: z.string().nullish(),
-      medium_display: z.string().nullish(),
-      place_of_origin: z.string().nullish(),
+      creation_date: z.string().nullish(),
+      technique: z.string().nullish(),
+      culture: z.array(z.string()).nullish(),
+      creators: z.array(z.object({ description: z.string().nullish() })).nullish(),
+      images: z.object({ web: z.object({ url: z.string() }).nullish() }).nullish(),
     }),
   ),
 });
-
-export const imageUrl = (imageId: string) => `https://www.artic.edu/iiif/2/${imageId}/full/843,/0/default.jpg`;
 
 const cache = new Map<string, { at: number; items: CatalogItem[] }>();
 export const clearCatalogCache = () => cache.clear();
@@ -38,28 +36,26 @@ async function fetchItems(q: string, limit: number): Promise<CatalogItem[]> {
   const url = new URL(BASE);
   url.searchParams.set("q", q);
   url.searchParams.set("limit", String(limit));
-  url.searchParams.set("query[term][is_public_domain]", "true");
-  url.searchParams.set("fields", "id,title,image_id,artist_display,date_display,medium_display,place_of_origin");
+  url.searchParams.set("has_image", "1");
+  url.searchParams.set("cc0", "1");
+  url.searchParams.set("fields", "id,title,creators,creation_date,technique,culture,images");
 
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT, "AIC-User-Agent": USER_AGENT, Accept: "application/json" },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
+  const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!res.ok) throw new Error(`catalog responded ${res.status}`);
 
   return responseSchema
     .parse(await res.json())
-    .data.filter((a) => a.image_id)
+    .data.filter((a) => a.images?.web?.url)
     .map((a) => ({
       externalId: String(a.id),
       title: a.title,
-      imageUrl: imageUrl(a.image_id!),
+      imageUrl: a.images!.web!.url,
       attributes: Object.fromEntries(
         Object.entries({
-          artist: a.artist_display?.replace(/\s*\n\s*/g, " — "),
-          date: a.date_display,
-          medium: a.medium_display,
-          origin: a.place_of_origin,
+          artist: a.creators?.[0]?.description,
+          date: a.creation_date,
+          medium: a.technique,
+          origin: a.culture?.[0],
         }).filter((entry): entry is [string, string] => Boolean(entry[1])),
       ),
     }));

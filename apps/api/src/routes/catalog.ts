@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../auth/middleware.js";
-import { searchCatalog } from "../external/artic.js";
+import { searchCatalog } from "../external/cleveland.js";
 
 const querySchema = z.object({ q: z.string().trim().min(2, "Digite ao menos 2 letras para buscar.").max(80) });
 
