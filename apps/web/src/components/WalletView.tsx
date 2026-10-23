@@ -17,7 +17,7 @@ const kindLabels: Record<string, string> = {
   deposit: "Depósito",
   settlement_debit: "Arremate pago",
   settlement_credit: "Venda recebida",
-  refund: "Estorno",
+  refund: "Estorno (lote cancelado)",
 };
 
 function Figure({ label, cents, hint }: { label: string; cents: number; hint: string }) {
@@ -116,9 +116,16 @@ export function WalletView() {
                   </p>
                   <p className="text-xs text-muted">{formatDateTime(e.createdAt)}</p>
                 </div>
-                <p className={`font-semibold tabular-nums ${e.kind === "settlement_debit" ? "text-danger" : "text-live"}`}>
-                  {e.kind === "settlement_debit" ? "−" : "+"} {formatBRL(e.amountCents)}
-                </p>
+                {e.kind === "refund" ? (
+                  <p className="text-right text-sm">
+                    <span className="font-semibold tabular-nums">{formatBRL(e.amountCents)}</span>
+                    <span className="block text-xs text-muted">liberado do comprometido</span>
+                  </p>
+                ) : (
+                  <p className={`font-semibold tabular-nums ${e.kind === "settlement_debit" ? "text-danger" : "text-live"}`}>
+                    {e.kind === "settlement_debit" ? "−" : "+"} {formatBRL(e.amountCents)}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
