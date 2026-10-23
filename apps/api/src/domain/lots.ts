@@ -100,6 +100,33 @@ export async function listLots(filter: { phase?: Phase; q?: string; auctioneerId
   return rows.map(toView);
 }
 
+// Lots where the bidder placed at least one bid, with their standing in each one.
+export async function listParticipating(bidderId: string) {
+  const { rows } = await pool.query(
+    `${SELECT_LOTS} WHERE EXISTS (SELECT 1 FROM bids x WHERE x.lot_id = l.id AND x.bidder_id = $1) ORDER BY l.ends_at DESC`,
+    [bidderId],
+  );
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const standing = await pool.query(
+    `SELECT lot_id,
+            max(amount_cents) FILTER (WHERE bidder_id = $1) AS my_bid,
+            (array_agg(bidder_id ORDER BY seq DESC))[1] AS leader
+     FROM bids WHERE lot_id = ANY($2) GROUP BY lot_id`,
+    [bidderId, ids],
+  );
+  const receipts = await pool.query("SELECT lot_id, token FROM receipts WHERE lot_id = ANY($1)", [ids]);
+  return rows.map((r) => {
+    const s = standing.rows.find((x) => x.lot_id === r.id);
+    return {
+      ...toView(r),
+      myBidCents: Number(s.my_bid),
+      leading: s.leader === bidderId,
+      receiptToken: r.winner_id === bidderId ? (receipts.rows.find((x) => x.lot_id === r.id)?.token as string) : null,
+    };
+  });
+}
+
 export async function totalReceived(auctioneerId: string): Promise<number> {
   const { rows } = await pool.query(
     "SELECT COALESCE(sum(winning_bid_cents), 0) AS total FROM lots WHERE auctioneer_id = $1 AND status = 'settled'",
