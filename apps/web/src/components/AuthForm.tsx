@@ -13,6 +13,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const isRegister = mode === "register";
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -63,14 +64,29 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </label>
         <label className="block text-sm">
           Senha
-          <input
-            name="password"
-            type="password"
-            required
-            minLength={isRegister ? 8 : undefined}
-            autoComplete={isRegister ? "new-password" : "current-password"}
-            className={input}
-          />
+          <div className="relative">
+            <input
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              minLength={isRegister ? 8 : undefined}
+              autoComplete={isRegister ? "new-password" : "current-password"}
+              className={`${input} pr-10`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Ocultar senha" : "Exibir senha"}
+              aria-pressed={showPassword}
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted hover:text-ink"
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+                {showPassword && <path d="M3 3l18 18" />}
+              </svg>
+            </button>
+          </div>
           {isRegister && <span className="text-xs text-muted">Mínimo de 8 caracteres.</span>}
         </label>
         {error && (
