@@ -16,3 +16,19 @@ export interface Lot {
   result: "sold" | "unsold" | null;
   winningBidCents: number | null;
 }
+
+export interface RoomBid {
+  seq: number;
+  bidder: string;
+  amountCents: number;
+  placedAt: string;
+  mine: boolean;
+}
+
+export interface Room {
+  lot: Lot;
+  serverTime: string;
+  minimumNextBidCents: number;
+  bids: RoomBid[];
+  me: { leading: boolean; outbid: boolean; myBidCents: number | null } | null;
+}
