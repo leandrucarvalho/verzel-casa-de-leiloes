@@ -1,7 +1,7 @@
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
-import { clearCatalogCache } from "../external/artic.js";
+import { clearCatalogCache } from "../external/cleveland.js";
 import { resetDb } from "../test/db.js";
 
 const app = createApp();
@@ -9,15 +9,15 @@ const app = createApp();
 const apiBody = {
   data: [
     {
-      id: 27992,
-      title: "A Sunday on La Grande Jatte",
-      image_id: "abc",
-      artist_display: "Georges Seurat\nFrench, 1859–1891",
-      date_display: "1884",
-      medium_display: "Oil on canvas",
-      place_of_origin: "France",
+      id: 135382,
+      title: "The Red Kerchief",
+      creation_date: "c. 1868–73",
+      technique: "oil on fabric",
+      culture: ["France, 19th century"],
+      creators: [{ description: "Claude Monet (French, 1840–1926)" }],
+      images: { web: { url: "https://openaccess-cdn.clevelandart.org/1958.39/1958.39_web.jpg" } },
     },
-    { id: 1, title: "No image", image_id: null },
+    { id: 1, title: "No image", images: null },
   ],
 };
 
@@ -38,42 +38,46 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("GET /catalog/search", () => {
   it("maps artworks into snapshot-ready items and drops the ones without image", async () => {
-    const fetchMock = vi.fn(ok);
-    vi.stubGlobal("fetch", fetchMock);
-    const res = await request(app).get("/catalog/search?q=seurat").set("Authorization", await auctioneerAuth());
+    vi.stubGlobal("fetch", vi.fn(ok));
+    const res = await request(app).get("/catalog/search?q=monet").set("Authorization", await auctioneerAuth());
     expect(res.status).toBe(200);
     expect(res.body.items).toEqual([
       {
-        externalId: "27992",
-        title: "A Sunday on La Grande Jatte",
-        imageUrl: "https://www.artic.edu/iiif/2/abc/full/843,/0/default.jpg",
-        attributes: { artist: "Georges Seurat — French, 1859–1891", date: "1884", medium: "Oil on canvas", origin: "France" },
+        externalId: "135382",
+        title: "The Red Kerchief",
+        imageUrl: "https://openaccess-cdn.clevelandart.org/1958.39/1958.39_web.jpg",
+        attributes: {
+          artist: "Claude Monet (French, 1840–1926)",
+          date: "c. 1868–73",
+          medium: "oil on fabric",
+          origin: "France, 19th century",
+        },
       },
     ]);
-    const headers = fetchMock.mock.calls[0]![1]!.headers as Record<string, string>;
-    expect(headers["User-Agent"]).toContain("verzel");
   });
 
   it("serves repeated searches from the cache", async () => {
     const fetchMock = vi.fn(ok);
     vi.stubGlobal("fetch", fetchMock);
     const auth = await auctioneerAuth();
-    await request(app).get("/catalog/search?q=seurat").set("Authorization", auth);
-    await request(app).get("/catalog/search?q=Seurat").set("Authorization", auth);
+    await request(app).get("/catalog/search?q=monet").set("Authorization", auth);
+    await request(app).get("/catalog/search?q=Monet").set("Authorization", auth);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("answers 503 with a clear message when the API is down and nothing is cached", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("down"))));
-    const res = await request(app).get("/catalog/search?q=seurat").set("Authorization", await auctioneerAuth());
+    const res = await request(app).get("/catalog/search?q=monet").set("Authorization", await auctioneerAuth());
     expect(res.status).toBe(503);
     expect(res.body.error).toBe("catalog_unavailable");
   });
 
-  it("treats a challenge page or unexpected payload as an outage", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("<html>Just a moment...</html>", { status: 403 }))));
-    const res = await request(app).get("/catalog/search?q=seurat").set("Authorization", await auctioneerAuth());
-    expect(res.status).toBe(503);
+  it("treats an error status or unexpected payload as an outage", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("<html>oops</html>", { status: 403 }))));
+    const auth = await auctioneerAuth();
+    expect((await request(app).get("/catalog/search?q=monet").set("Authorization", auth)).status).toBe(503);
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ nope: true })))));
+    expect((await request(app).get("/catalog/search?q=turner").set("Authorization", auth)).status).toBe(503);
   });
 
   it("serves stale results when the API fails after a successful search", async () => {
@@ -81,10 +85,10 @@ describe("GET /catalog/search", () => {
     const fetchMock = vi.fn(ok);
     vi.stubGlobal("fetch", fetchMock);
     const auth = await auctioneerAuth();
-    await request(app).get("/catalog/search?q=seurat").set("Authorization", auth);
+    await request(app).get("/catalog/search?q=monet").set("Authorization", auth);
     vi.setSystemTime(Date.now() + 11 * 60_000);
     fetchMock.mockImplementation(() => Promise.reject(new Error("down")));
-    const res = await request(app).get("/catalog/search?q=seurat").set("Authorization", auth);
+    const res = await request(app).get("/catalog/search?q=monet").set("Authorization", auth);
     vi.useRealTimers();
     expect(res.status).toBe(200);
     expect(res.body.stale).toBe(true);
@@ -97,7 +101,7 @@ describe("GET /catalog/search", () => {
     const bidder = await request(app)
       .post("/auth/register")
       .send({ email: "b@example.com", password: "senha-forte-1", nickname: "bidder", role: "bidder" });
-    expect((await request(app).get("/catalog/search?q=seurat").set("Authorization", `Bearer ${bidder.body.token}`)).status).toBe(403);
-    expect((await request(app).get("/catalog/search?q=seurat")).status).toBe(401);
+    expect((await request(app).get("/catalog/search?q=monet").set("Authorization", `Bearer ${bidder.body.token}`)).status).toBe(403);
+    expect((await request(app).get("/catalog/search?q=monet")).status).toBe(401);
   });
 });
