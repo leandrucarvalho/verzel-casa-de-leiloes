@@ -3,6 +3,7 @@ import express, { type ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
 import { HttpError } from "./errors.js";
 import { authRouter } from "./routes/auth.js";
+import { lotsRouter } from "./routes/lots.js";
 import { walletRouter } from "./routes/wallet.js";
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -26,6 +27,7 @@ export function createApp() {
   });
   app.use("/auth", authRouter);
   app.use("/wallet", walletRouter);
+  app.use("/lots", lotsRouter);
   app.use(errorHandler);
   return app;
 }
