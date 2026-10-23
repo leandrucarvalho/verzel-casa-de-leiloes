@@ -10,6 +10,7 @@ import { CopyLink } from "./CopyLink";
 type Participation = Lot & { myBidCents: number; leading: boolean; receiptToken: string | null };
 
 function standing(l: Participation) {
+  if (l.status === "cancelled") return { text: "Lote cancelado pelo leiloeiro. Se você liderava, o valor foi liberado.", tone: "text-muted" };
   if (l.status === "ended") {
     if (l.receiptToken) return { text: `Arrematado por ${formatBRL(l.winningBidCents ?? 0)}`, tone: "text-live" };
     return { text: "Não arrematado", tone: "text-muted" };
@@ -49,7 +50,8 @@ export function WinsView() {
               </Link>
               <p className={`mt-1 text-sm font-medium ${s.tone}`}>{s.text}</p>
               <p className="text-sm text-muted">
-                Seu lance: {formatBRL(l.myBidCents)} · {l.status === "ended" ? "encerrado" : "termina"} em {formatDateTime(l.endsAt)}
+                Seu lance: {formatBRL(l.myBidCents)}
+                {l.status !== "cancelled" && ` · ${l.status === "ended" ? "encerrado" : "termina"} em ${formatDateTime(l.endsAt)}`}
               </p>
               {l.receiptToken && (
                 <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
