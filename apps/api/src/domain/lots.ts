@@ -1,5 +1,6 @@
 import { pool } from "../db/pool.js";
 import { HttpError } from "../errors.js";
+import { notifyLotChanged } from "./events.js";
 
 export type Phase = "scheduled" | "live" | "ended";
 
@@ -135,15 +136,31 @@ export async function totalReceived(auctioneerId: string): Promise<number> {
   return Number(rows[0].total);
 }
 
+// Cancelling a lot with bids releases what the leader had committed and records a refund entry.
+// Nobody else holds money for the lot (outbid bidders were already released), and no balance moved yet,
+// so "refund" means giving back the reserved amount, not reversing a payment.
 export async function cancelLot(lotId: string, auctioneerId: string): Promise<LotView> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const lot = (await client.query("SELECT auctioneer_id, status FROM lots WHERE id = $1 FOR UPDATE", [lotId])).rows[0];
+    const lot = (await client.query("SELECT auctioneer_id, status, ends_at FROM lots WHERE id = $1 FOR UPDATE", [lotId])).rows[0];
     if (!lot || lot.auctioneer_id !== auctioneerId) throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
-    if (lot.status !== "published") throw new HttpError(409, "lot_not_cancellable", "Este lote não pode mais ser cancelado.");
-    const bids = await client.query("SELECT 1 FROM bids WHERE lot_id = $1 LIMIT 1", [lotId]);
-    if (bids.rowCount) throw new HttpError(409, "lot_has_bids", "Lotes com lances não podem ser cancelados.");
+    const now: Date = (await client.query("SELECT clock_timestamp() AS now")).rows[0].now;
+    if (lot.status !== "published" || lot.ends_at <= now) {
+      throw new HttpError(409, "lot_not_cancellable", "Este lote não pode mais ser cancelado.");
+    }
+    const last = (
+      await client.query("SELECT bidder_id, amount_cents FROM bids WHERE lot_id = $1 ORDER BY seq DESC LIMIT 1", [lotId])
+    ).rows[0];
+    if (last) {
+      await client.query("SELECT id FROM users WHERE id = $1 FOR UPDATE", [last.bidder_id]);
+      await client.query("UPDATE users SET committed_cents = committed_cents - $2 WHERE id = $1", [last.bidder_id, last.amount_cents]);
+      await client.query("INSERT INTO wallet_entries (user_id, kind, amount_cents, lot_id) VALUES ($1, 'refund', $2, $3)", [
+        last.bidder_id,
+        last.amount_cents,
+        lotId,
+      ]);
+    }
     await client.query("UPDATE lots SET status = 'cancelled' WHERE id = $1", [lotId]);
     await client.query("COMMIT");
   } catch (err) {
@@ -152,5 +169,6 @@ export async function cancelLot(lotId: string, auctioneerId: string): Promise<Lo
   } finally {
     client.release();
   }
+  notifyLotChanged(lotId);
   return (await getLot(lotId))!;
 }

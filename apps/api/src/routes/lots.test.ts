@@ -106,17 +106,46 @@ describe("POST /lots/:id/cancel", () => {
     expect(res.body.status).toBe("cancelled");
   });
 
-  it("refuses when the lot already has bids", async () => {
+  it("releases the leader's committed balance and records a refund", async () => {
+    const { auth } = await signUp("auctioneer", "l@example.com");
+    const ana = await signUp("bidder", "a@example.com");
+    const bruno = await signUp("bidder", "b@example.com");
+    for (const b of [ana, bruno]) await request(app).post("/wallet/deposit").set("Authorization", b.auth).send({ amountCents: 50_000 });
+    const lot = await create(auth);
+    await request(app).post(`/lots/${lot.body.id}/bids`).set("Authorization", ana.auth).send({ amountCents: 10_000 });
+    await request(app).post(`/lots/${lot.body.id}/bids`).set("Authorization", bruno.auth).send({ amountCents: 10_500 });
+
+    const res = await request(app).post(`/lots/${lot.body.id}/cancel`).set("Authorization", auth);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("cancelled");
+
+    const brunoWallet = (await request(app).get("/wallet").set("Authorization", bruno.auth)).body;
+    expect(brunoWallet).toMatchObject({ totalCents: 50_000, committedCents: 0, availableCents: 50_000 });
+    expect(brunoWallet.entries[0]).toMatchObject({ kind: "refund", amountCents: 10_500, lotId: lot.body.id });
+
+    // Ana was outbid earlier, so she had nothing left to release
+    const anaWallet = (await request(app).get("/wallet").set("Authorization", ana.auth)).body;
+    expect(anaWallet).toMatchObject({ totalCents: 50_000, committedCents: 0 });
+    expect(anaWallet.entries.some((e: { kind: string }) => e.kind === "refund")).toBe(false);
+  });
+
+  it("stops accepting bids on the cancelled lot", async () => {
     const { auth } = await signUp("auctioneer", "l@example.com");
     const bidder = await signUp("bidder", "b@example.com");
+    await request(app).post("/wallet/deposit").set("Authorization", bidder.auth).send({ amountCents: 50_000 });
     const lot = await create(auth);
-    await pool.query(
-      "INSERT INTO bids (lot_id, bidder_id, amount_cents, placed_at, seq, prev_hash, hash) VALUES ($1, $2, 10000, now(), 1, 'p', 'h')",
-      [lot.body.id, bidder.id],
-    );
+    await request(app).post(`/lots/${lot.body.id}/cancel`).set("Authorization", auth);
+    const res = await request(app).post(`/lots/${lot.body.id}/bids`).set("Authorization", bidder.auth).send({ amountCents: 10_000 });
+    expect(res.status).toBe(404);
+  });
+
+  it("refuses to cancel a lot whose time is up", async () => {
+    const { auth } = await signUp("auctioneer", "l@example.com");
+    const lot = await create(auth);
+    await pool.query("UPDATE lots SET starts_at = now() - interval '2 hours', ends_at = now() - interval '1 hour' WHERE id = $1", [lot.body.id]);
     const res = await request(app).post(`/lots/${lot.body.id}/cancel`).set("Authorization", auth);
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe("lot_has_bids");
+    expect(res.body.error).toBe("lot_not_cancellable");
   });
 
   it("refuses another auctioneer", async () => {
