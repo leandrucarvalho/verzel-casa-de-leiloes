@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole } from "../auth/middleware.js";
+import { optionalAuth, requireAuth, requireRole } from "../auth/middleware.js";
 import { auditLot } from "../domain/audit.js";
 import { placeBid } from "../domain/bids.js";
+import { onLotChanged } from "../domain/events.js";
+import { roomView } from "../domain/room.js";
 import { cancelLot, createLot, getLot, listLots, listParticipating, totalReceived } from "../domain/lots.js";
 import { HttpError } from "../errors.js";
 
@@ -50,6 +52,34 @@ lotsRouter.get("/:id/audit", async (req, res) => {
   const audit = id.success ? await auditLot(id.data) : null;
   if (!audit) throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
   res.json(audit);
+});
+
+// Everything the live room needs in one call; "mine" and "me" only appear for a logged user.
+lotsRouter.get("/:id/room", optionalAuth, async (req, res) => {
+  const id = z.uuid().safeParse(req.params.id);
+  const room = id.success ? await roomView(id.data, req.user?.id) : null;
+  if (!room) throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
+  res.json(room);
+});
+
+// Server-sent events: a bare "update" ping whenever the lot changes. Clients refetch /room,
+// so each one still gets its own "mine"/"me" and no private data travels on the stream.
+lotsRouter.get("/:id/events", (req, res) => {
+  const id = z.uuid().safeParse(req.params.id);
+  if (!id.success) throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  res.write(": connected\n\n");
+  const off = onLotChanged(id.data, () => res.write("event: update\ndata: {}\n\n"));
+  const heartbeat = setInterval(() => res.write(": ping\n\n"), 25_000);
+  req.on("close", () => {
+    off();
+    clearInterval(heartbeat);
+  });
 });
 
 lotsRouter.get("/:id", async (req, res) => {
