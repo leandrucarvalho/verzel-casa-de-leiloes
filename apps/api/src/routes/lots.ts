@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../auth/middleware.js";
+import { auditLot } from "../domain/audit.js";
 import { placeBid } from "../domain/bids.js";
 import { cancelLot, createLot, getLot, listLots, totalReceived } from "../domain/lots.js";
 import { HttpError } from "../errors.js";
@@ -37,6 +38,14 @@ lotsRouter.get("/mine", requireAuth, requireRole("auctioneer"), async (req, res)
     totalReceived(req.user!.id),
   ]);
   res.json({ lots, totalReceivedCents });
+});
+
+// Public, no login: anyone can recompute the hash chain of a lot.
+lotsRouter.get("/:id/audit", async (req, res) => {
+  const id = z.uuid().safeParse(req.params.id);
+  const audit = id.success ? await auditLot(id.data) : null;
+  if (!audit) throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
+  res.json(audit);
 });
 
 lotsRouter.get("/:id", async (req, res) => {
