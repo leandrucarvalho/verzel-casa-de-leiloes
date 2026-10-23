@@ -44,6 +44,9 @@ function toView(r: Record<string, any>) {
     status: (r.status === "cancelled" ? "cancelled" : r.phase) as Phase | "cancelled",
     auctioneer: r.auctioneer_nickname as string,
     currentBidCents: r.current_bid_cents === null ? null : Number(r.current_bid_cents),
+    // set once settled: null while open, "sold" or "unsold" afterwards
+    result: (r.status === "settled" ? (r.winner_id ? "sold" : "unsold") : null) as "sold" | "unsold" | null,
+    winningBidCents: r.winning_bid_cents === null ? null : Number(r.winning_bid_cents),
     bidCount: Number(r.bid_count),
   };
 }
@@ -95,6 +98,14 @@ export async function listLots(filter: { phase?: Phase; q?: string; auctioneerId
   }
   const { rows } = await pool.query(`${SELECT_LOTS} WHERE ${where.join(" AND ")} ORDER BY l.ends_at ASC`, params);
   return rows.map(toView);
+}
+
+export async function totalReceived(auctioneerId: string): Promise<number> {
+  const { rows } = await pool.query(
+    "SELECT COALESCE(sum(winning_bid_cents), 0) AS total FROM lots WHERE auctioneer_id = $1 AND status = 'settled'",
+    [auctioneerId],
+  );
+  return Number(rows[0].total);
 }
 
 export async function cancelLot(lotId: string, auctioneerId: string): Promise<LotView> {

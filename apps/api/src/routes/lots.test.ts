@@ -135,6 +135,7 @@ describe("GET /lots/mine", () => {
     await create(other.auth, { title: "theirs" });
     await request(app).post(`/lots/${lot.body.id}/cancel`).set("Authorization", owner.auth);
     const res = await request(app).get("/lots/mine").set("Authorization", owner.auth);
-    expect(res.body.map((l: { title: string; status: string }) => [l.title, l.status])).toEqual([["mine", "cancelled"]]);
+    expect(res.body.lots.map((l: { title: string; status: string }) => [l.title, l.status])).toEqual([["mine", "cancelled"]]);
+    expect(res.body.totalReceivedCents).toBe(0);
   });
 });
