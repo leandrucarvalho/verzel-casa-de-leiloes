@@ -4,7 +4,6 @@ import { placeBid } from "../domain/bids.js";
 import { createLot } from "../domain/lots.js";
 import { settleLot } from "../domain/settlement.js";
 import { deposit } from "../domain/wallet.js";
-import { imageUrl } from "../external/artic.js";
 import { migrate } from "./migrate.js";
 import { pool } from "./pool.js";
 
@@ -20,37 +19,38 @@ async function createUser(email: string, nickname: string, role: "auctioneer" | 
   return rows[0].id as string;
 }
 
-// Snapshots of real Art Institute of Chicago works (public domain), so the seed needs no network.
+// Snapshots of real Cleveland Museum of Art works (CC0), so the seed needs no network.
+const cdn = (accession: string) => `https://openaccess-cdn.clevelandart.org/${accession}/${accession}_web.jpg`;
 const artworks = {
-  seurat: {
-    externalId: "27992",
-    title: "A Sunday on La Grande Jatte — 1884",
-    imageUrl: imageUrl("2d484387-2509-5e8e-2c43-22f9981972eb"),
-    attributes: { artist: "Georges Seurat (French, 1859–1891)", date: "1884–86", medium: "Oil on canvas", origin: "France" },
+  redKerchief: {
+    externalId: "135382",
+    title: "The Red Kerchief",
+    imageUrl: cdn("1958.39"),
+    attributes: { artist: "Claude Monet (French, 1840–1926)", date: "c. 1868–73", medium: "oil on fabric", origin: "France, 19th century" },
   },
-  vanGogh: {
-    externalId: "28560",
-    title: "The Bedroom",
-    imageUrl: imageUrl("6644829f-f292-c5c4-a73c-0356a6fdbf0d"),
-    attributes: { artist: "Vincent van Gogh (Dutch, 1853–1890)", date: "1889", medium: "Oil on canvas", origin: "Saint-Rémy-de-Provence" },
+  fuji: {
+    externalId: "111654",
+    title: "South Wind, Clear Sky, from Thirty-Six Views of Mount Fuji",
+    imageUrl: cdn("1930.189"),
+    attributes: { artist: "Katsushika Hokusai (Japanese, 1760–1849)", date: "early 1830s", medium: "color woodblock print", origin: "Japan, Edo period (1615–1868)" },
   },
-  waterLilies: {
-    externalId: "16568",
-    title: "Water Lilies",
-    imageUrl: imageUrl("3c27b499-af56-f0d5-93b5-a7f2f1ad5813"),
-    attributes: { artist: "Claude Monet (French, 1840–1926)", medium: "Oil on canvas", origin: "France" },
+  turner: {
+    externalId: "122351",
+    title: "The Burning of the Houses of Lords and Commons, 16 October 1834",
+    imageUrl: cdn("1942.647"),
+    attributes: { artist: "Joseph Mallord William Turner (British, 1775–1851)", date: "1835", medium: "oil on canvas", origin: "England, 19th century" },
   },
-  caillebotte: {
-    externalId: "20684",
-    title: "Paris Street; Rainy Day",
-    imageUrl: imageUrl("f8fd76e9-c396-5678-36ed-6a348c904d27"),
-    attributes: { artist: "Gustave Caillebotte (French, 1848–1894)", date: "1877", medium: "Oil on canvas", origin: "Paris" },
+  caravaggio: {
+    externalId: "148758",
+    title: "The Crucifixion of Saint Andrew",
+    imageUrl: cdn("1976.2"),
+    attributes: { artist: "Caravaggio (Italian, 1571–1610)", date: "1606–7", medium: "oil on canvas", origin: "Italy, Naples" },
   },
-  normandyTrain: {
-    externalId: "16571",
-    title: "Arrival of the Normandy Train, Gare Saint-Lazare",
-    imageUrl: imageUrl("0f1cc0e0-e42e-be16-3f71-2022da38cb93"),
-    attributes: { artist: "Claude Monet (French, 1840–1926)", medium: "Oil on canvas", origin: "France" },
+  rodin: {
+    externalId: "98627",
+    title: "The Age of Bronze",
+    imageUrl: cdn("1918.328"),
+    attributes: { artist: "Auguste Rodin (French, 1840–1917)", date: "1875–76", medium: "bronze", origin: "France, 19th century" },
   },
 };
 
@@ -72,20 +72,20 @@ export async function seed() {
     createLot(seller, { ...art, startingBidCents: 100_000, minIncrementCents: 5_000, startsAt, endsAt });
 
   // live, with open bids
-  const live = await lot(artworks.seurat, at(-DAY), at(3 * DAY));
+  const live = await lot(artworks.redKerchief, at(-DAY), at(3 * DAY));
   await placeBid(live.id, ana, 100_000);
   await placeBid(live.id, bruno, 105_000);
   await placeBid(live.id, ana, 115_000);
 
   // live, no bids yet
-  await lot(artworks.vanGogh, at(-DAY), at(2 * DAY));
-  await lot(artworks.waterLilies, at(-DAY / 2), at(5 * DAY));
+  await lot(artworks.fuji, at(-DAY), at(2 * DAY));
+  await lot(artworks.turner, at(-DAY / 2), at(5 * DAY));
 
   // scheduled
-  await lot(artworks.caillebotte, at(DAY), at(4 * DAY));
+  await lot(artworks.caravaggio, at(DAY), at(4 * DAY));
 
   // ended and settled, with a receipt
-  const ended = await lot(artworks.normandyTrain, at(-3 * DAY), at(DAY));
+  const ended = await lot(artworks.rodin, at(-3 * DAY), at(DAY));
   await placeBid(ended.id, ana, 100_000);
   await placeBid(ended.id, bruno, 120_000);
   await pool.query("UPDATE lots SET starts_at = now() - interval '3 days', ends_at = now() - interval '1 day' WHERE id = $1", [ended.id]);
