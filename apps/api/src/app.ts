@@ -3,6 +3,7 @@ import express, { type ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
 import { HttpError } from "./errors.js";
 import { authRouter } from "./routes/auth.js";
+import { walletRouter } from "./routes/wallet.js";
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof HttpError) {
@@ -24,6 +25,7 @@ export function createApp() {
     res.json({ status: "ok" });
   });
   app.use("/auth", authRouter);
+  app.use("/wallet", walletRouter);
   app.use(errorHandler);
   return app;
 }
