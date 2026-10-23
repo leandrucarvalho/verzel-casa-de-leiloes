@@ -9,6 +9,8 @@ import { pool } from "./pool.js";
 
 export const DEMO_PASSWORD = "demo12345";
 const DAY = 86_400_000;
+// open lots last long enough that the demo still has live auctions when someone evaluates it weeks later
+const DEMO_SPAN = 60 * DAY;
 const at = (ms: number) => new Date(Date.now() + ms);
 
 async function createUser(email: string, nickname: string, role: "auctioneer" | "bidder") {
@@ -72,17 +74,17 @@ export async function seed() {
     createLot(seller, { ...art, startingBidCents: 100_000, minIncrementCents: 5_000, startsAt, endsAt });
 
   // live, with open bids
-  const live = await lot(artworks.redKerchief, at(-DAY), at(3 * DAY));
+  const live = await lot(artworks.redKerchief, at(-DAY), at(DEMO_SPAN));
   await placeBid(live.id, ana, 100_000);
   await placeBid(live.id, bruno, 105_000);
   await placeBid(live.id, ana, 115_000);
 
   // live, no bids yet
-  await lot(artworks.fuji, at(-DAY), at(2 * DAY));
-  await lot(artworks.turner, at(-DAY / 2), at(5 * DAY));
+  await lot(artworks.fuji, at(-DAY), at(DEMO_SPAN));
+  await lot(artworks.turner, at(-DAY / 2), at(DEMO_SPAN));
 
   // scheduled
-  await lot(artworks.caravaggio, at(DAY), at(4 * DAY));
+  await lot(artworks.caravaggio, at(DAY), at(DEMO_SPAN + DAY));
 
   // ended and settled, with a receipt
   const ended = await lot(artworks.rodin, at(-3 * DAY), at(DAY));
