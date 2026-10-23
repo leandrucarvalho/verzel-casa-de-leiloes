@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { HttpError } from "./errors.js";
 import { settleDueLots } from "./domain/settlement.js";
 import { authRouter } from "./routes/auth.js";
+import { catalogRouter } from "./routes/catalog.js";
 import { lotsRouter } from "./routes/lots.js";
 import { receiptsRouter } from "./routes/receipts.js";
 import { walletRouter } from "./routes/wallet.js";
@@ -38,6 +39,7 @@ export function createApp() {
     }
   };
   app.use("/auth", authRouter);
+  app.use("/catalog", catalogRouter);
   app.use("/wallet", settleFirst, walletRouter);
   app.use("/lots", settleFirst, lotsRouter);
   app.use("/receipts", settleFirst, receiptsRouter);
