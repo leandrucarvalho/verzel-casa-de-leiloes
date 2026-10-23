@@ -53,7 +53,17 @@ npm run dev:api   # http://localhost:3333
 npm run dev:web   # http://localhost:3000
 ```
 
-O `docker-compose.yml` sobe apenas o Postgres (`leilao`/`leilao` na porta 5432). API e front rodam pelo Node.
+### Tudo com Docker
+
+```bash
+docker compose up --build
+```
+
+Sobe o banco, a API e o front: web em http://localhost:3000, API em http://localhost:3333. No primeiro start a API aplica as migrações e carrega os dados demo (`SEED_ON_START=1`). A ordem é garantida por healthchecks (banco, depois API, depois front) e as imagens são multi-stage, rodando sem root. Se a porta 3000, 3333 ou 5432 estiver ocupada, pare o que a usa antes.
+
+O front embute a URL da API na hora do build (`NEXT_PUBLIC_API_URL`, em `docker-compose.yml`). Os segredos do compose são só de uso local; para outros valores, exporte `JWT_SECRET` e `HASH_SECRET` no terminal.
+
+Para só o banco (e rodar API e front pelo Node, como acima): `docker compose up -d db`.
 
 Não precisa criar arquivo `.env` para rodar local: a API não lê `.env` e usa valores padrão de desenvolvimento (banco em `localhost:5432`, segredos de desenvolvimento, CORS aberto), e o front usa `http://localhost:3333`. Para mudar algo, defina a variável no terminal antes do comando. Os arquivos `.env.example` listam os nomes.
 
@@ -182,7 +192,7 @@ Dinheiro é sempre inteiro em centavos, nunca ponto flutuante.
 - **Eventos em tempo real** vivem na memória de um único processo. Com várias instâncias da API, o aviso instantâneo só chegaria a quem estivesse na mesma instância; o polling de 5 segundos cobre o resto. Para escalar, trocaria por Postgres `LISTEN/NOTIFY` ou Redis.
 - **Liquidação preguiçosa:** ler lotes, carteira ou comprovantes dispara a liquidação do que já venceu. É proposital, mas significa que essas leituras podem escrever no banco.
 - **Token de login** fica no `localStorage` do navegador, o que é simples mas fica exposto a XSS. Não há recuperação de senha (fora do escopo do teste).
-- **Docker Compose** sobe só o banco.
+- **Docker Compose** sobe o banco, a API e o front. Os segredos dele são padrões locais, não os de produção.
 
 ## Uso de IA
 
