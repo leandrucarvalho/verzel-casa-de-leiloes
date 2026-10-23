@@ -1,9 +1,11 @@
 import cors from "cors";
-import express, { type ErrorRequestHandler } from "express";
+import express, { type ErrorRequestHandler, type RequestHandler } from "express";
 import { ZodError } from "zod";
 import { HttpError } from "./errors.js";
+import { settleDueLots } from "./domain/settlement.js";
 import { authRouter } from "./routes/auth.js";
 import { lotsRouter } from "./routes/lots.js";
+import { receiptsRouter } from "./routes/receipts.js";
 import { walletRouter } from "./routes/wallet.js";
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -25,9 +27,20 @@ export function createApp() {
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+  // Lazy settlement: whoever reads lots, wallet or receipts first settles what is due,
+  // so results are right even if the periodic job did not run (e.g. the free host was asleep).
+  const settleFirst: RequestHandler = async (_req, _res, next) => {
+    try {
+      await settleDueLots();
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
   app.use("/auth", authRouter);
-  app.use("/wallet", walletRouter);
-  app.use("/lots", lotsRouter);
+  app.use("/wallet", settleFirst, walletRouter);
+  app.use("/lots", settleFirst, lotsRouter);
+  app.use("/receipts", settleFirst, receiptsRouter);
   app.use(errorHandler);
   return app;
 }

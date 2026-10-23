@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../auth/middleware.js";
 import { placeBid } from "../domain/bids.js";
-import { cancelLot, createLot, getLot, listLots } from "../domain/lots.js";
+import { cancelLot, createLot, getLot, listLots, totalReceived } from "../domain/lots.js";
 import { HttpError } from "../errors.js";
 
 const createSchema = z
@@ -32,7 +32,11 @@ lotsRouter.get("/", async (req, res) => {
 });
 
 lotsRouter.get("/mine", requireAuth, requireRole("auctioneer"), async (req, res) => {
-  res.json(await listLots({ auctioneerId: req.user!.id }));
+  const [lots, totalReceivedCents] = await Promise.all([
+    listLots({ auctioneerId: req.user!.id }),
+    totalReceived(req.user!.id),
+  ]);
+  res.json({ lots, totalReceivedCents });
 });
 
 lotsRouter.get("/:id", async (req, res) => {
