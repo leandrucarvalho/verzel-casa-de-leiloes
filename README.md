@@ -219,4 +219,8 @@ Dinheiro é sempre inteiro em centavos, nunca ponto flutuante.
 
 ## Uso de IA
 
-Este projeto foi desenvolvido com o apoio de um assistente de IA (Claude Code, da Anthropic), que escreveu parte do código e dos testes. As escolhas de produto e de stack, a revisão e a publicação ficaram comigo.
+Usei o Claude Code (Anthropic) como assistente de programação ao longo de todo o projeto. Ele escreveu a maior parte do código e dos testes, sob a minha direção. Eu defini a stack (Next.js, Vercel, Render, Neon e Docker Compose), o tema, o fluxo de branches e commits (Git flow com Conventional Commits) e o escopo, e pedi o trabalho em PRs pequenos. Eu criei as contas, cuidei dos segredos e fiz o deploy do front na Vercel; a API foi publicada na Render a partir do `render.yaml`. Os segredos (senha do banco, chaves) não passaram pelo chat nem pelo repositório.
+
+A conferência foi feita com testes automatizados (API e web, rodando na CI), testes manuais no navegador e um roteiro de verificação rodado no site publicado. Isso pegou erros do assistente, por exemplo uma tela que esperava uma lista quando a API devolvia um objeto com `items`, e arquivos que ficaram de fora de um PR.
+
+As decisões de arquitetura e os limites conhecidos estão neste README, por exemplo: a auditoria não detecta a remoção do último lance antes do encerramento do lote.
