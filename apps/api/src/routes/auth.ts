@@ -5,7 +5,7 @@ import { hashPassword, verifyPassword } from "../auth/password.js";
 import { signToken, type Role } from "../auth/token.js";
 import { pool } from "../db/pool.js";
 import { HttpError } from "../errors.js";
-import { loginFailuresByAccount, loginFailuresByIp, registrationsByIp } from "../rateLimit.js";
+import { clientIp, loginFailuresByEmail, loginFailuresByIp, registrationsByIp } from "../rateLimit.js";
 
 const registerSchema = z.object({
   email: z.email().transform((e) => e.toLowerCase()),
@@ -29,7 +29,8 @@ const publicUser = (u: UserRow) => ({ id: u.id, email: u.email, nickname: u.nick
 export const authRouter = Router();
 
 authRouter.post("/register", async (req, res) => {
-  registrationsByIp.take(req.ip ?? "unknown");
+  const ip = clientIp(req);
+  if (ip) registrationsByIp.take(ip);
   const body = registerSchema.parse(req.body);
   const passwordHash = await hashPassword(body.password);
   try {
@@ -49,18 +50,17 @@ authRouter.post("/register", async (req, res) => {
 
 authRouter.post("/login", async (req, res) => {
   const body = loginSchema.parse(req.body);
-  const ip = req.ip ?? "unknown";
-  const account = `${ip}|${body.email}`;
-  loginFailuresByAccount.assertOpen(account);
-  loginFailuresByIp.assertOpen(ip);
+  const ip = clientIp(req);
+  loginFailuresByEmail.assertOpen(body.email);
+  if (ip) loginFailuresByIp.assertOpen(ip);
   const { rows } = await pool.query<UserRow>("SELECT * FROM users WHERE email = $1", [body.email]);
   const user = rows[0];
   if (!user || !(await verifyPassword(body.password, user.password_hash))) {
-    loginFailuresByAccount.add(account);
-    loginFailuresByIp.add(ip);
+    loginFailuresByEmail.add(body.email);
+    if (ip) loginFailuresByIp.add(ip);
     throw new HttpError(401, "invalid_credentials", "E-mail ou senha inválidos.");
   }
-  loginFailuresByAccount.reset(account);
+  loginFailuresByEmail.reset(body.email);
   res.json({ token: signToken(user), user: publicUser(user) });
 });
 
