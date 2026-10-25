@@ -101,7 +101,7 @@ Front: `NEXT_PUBLIC_API_URL`, a URL da API.
 ### Testes e qualidade
 
 ```bash
-npm test          # API (90 testes) e web (19 testes)
+npm test          # API (103 testes) e web (19 testes)
 npm run lint
 npm run typecheck
 npm run build
