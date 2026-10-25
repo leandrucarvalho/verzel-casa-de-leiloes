@@ -23,8 +23,6 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 
 export function createApp() {
   const app = express();
-  // behind Render's proxy req.ip would be the proxy's address for everyone, which would defeat the per-IP limits
-  app.set("trust proxy", process.env.NODE_ENV === "production" ? 1 : false);
   // CORS_ORIGIN: comma-separated list of allowed front-end origins
   app.use(cors({ origin: process.env.CORS_ORIGIN?.split(",") ?? true }));
   app.use(express.json());

@@ -1,3 +1,4 @@
+import type { Request } from "express";
 import { HttpError } from "./errors.js";
 
 // Fixed-window counters per key. Small on purpose, no dependency.
@@ -47,11 +48,18 @@ export class RateLimiter {
 const MINUTE = 60_000;
 
 // Only failed logins count, so people who know their password are never locked out.
-export const loginFailuresByAccount = new RateLimiter(10, 15 * MINUTE);
+// The account limit is keyed by e-mail alone: behind the host's proxies the address the API sees changes from one
+// request to the next, so an IP-based key never filled up (found by testing in production).
+// shortcut: anyone can lock an account for the window by failing on purpose; add a CAPTCHA or a per-device token if that matters.
+export const loginFailuresByEmail = new RateLimiter(10, 15 * MINUTE);
 export const loginFailuresByIp = new RateLimiter(100, 15 * MINUTE);
 export const registrationsByIp = new RateLimiter(30, 60 * MINUTE);
 export const bidsByUser = new RateLimiter(30, MINUTE);
 
+// The real client address as Cloudflare (in front of Render) reports it, which callers cannot overwrite there.
+// Without that header (local runs, other hosts) clients cannot be told apart, so the per-IP limits are skipped.
+export const clientIp = (req: Request) => req.get("cf-connecting-ip") || undefined;
+
 export function resetRateLimits() {
-  for (const l of [loginFailuresByAccount, loginFailuresByIp, registrationsByIp, bidsByUser]) l.clear();
+  for (const l of [loginFailuresByEmail, loginFailuresByIp, registrationsByIp, bidsByUser]) l.clear();
 }
