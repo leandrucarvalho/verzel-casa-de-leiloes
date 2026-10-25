@@ -14,10 +14,10 @@ const attributeLabels: Record<string, string> = { artist: "Artista", date: "Data
 
 export function LotRoom({ lotId }: { lotId: string }) {
   const { user } = useAuth();
-  const { room, error, clockOffset, extended, refresh, retry } = useRoom(lotId, user?.id);
+  const { room, error, clockOffset, extended, gone, refresh, retry } = useRoom(lotId, user?.id);
   const now = useNow();
 
-  const live = room?.lot.status === "live";
+  const live = !gone && room?.lot.status === "live";
   const remaining = room && now ? new Date(room.lot.endsAt).getTime() - (now + clockOffset) : null;
   const overdue = live && remaining !== null && remaining <= 0;
 
@@ -51,6 +51,12 @@ export function LotRoom({ lotId }: { lotId: string }) {
       <Link href="/" className="text-sm text-muted underline underline-offset-4 hover:text-ink">
         ← Vitrine
       </Link>
+
+      {gone && (
+        <p role="alert" className="mt-4 rounded-xl border border-danger bg-danger/10 p-4 font-medium text-danger">
+          Este lote foi cancelado pelo leiloeiro. Os lances não valem mais e, se você estava ganhando, o valor foi liberado.
+        </p>
+      )}
 
       <div className="mt-4 grid gap-8 lg:grid-cols-2">
         <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-line bg-surface">
@@ -114,7 +120,7 @@ export function LotRoom({ lotId }: { lotId: string }) {
             </p>
           )}
 
-          <BidPanel room={room} user={user} onPlaced={refresh} />
+          {!gone && <BidPanel room={room} user={user} onPlaced={refresh} />}
 
           <p className="text-sm">
             <Link href={`/auditoria/${lot.id}`} className="text-muted underline underline-offset-4 hover:text-ink">
