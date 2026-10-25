@@ -101,7 +101,7 @@ Use o site publicado ou o ambiente local. As contas estão na tabela de demonstr
 
 | Função | Onde | Como simular |
 |---|---|---|
-| Vitrine e busca | `/` | Alterne entre Ao vivo, Agendados e Encerrados e use o campo de busca por título. Lotes cancelados não aparecem. |
+| Vitrine e busca | `/` | Alterne entre Ao vivo, Agendados e Encerrados e use o campo de busca por título ou artista. Lotes cancelados não aparecem. |
 | Cadastro e login | `/cadastro`, `/login` | Crie uma conta de licitante ou de leiloeiro. O olhinho mostra ou oculta a senha. |
 | Criar lote | `/painel` (leiloeiro) | Busque uma obra (ex.: `monet`), escolha, defina lance inicial, incremento, início e fim, e crie. |
 | Lote agendado | `/painel` | Crie um lote com início no futuro. Ele aparece em Agendados, e a sala mostra o campo de lance desabilitado ("ainda não começou"). |

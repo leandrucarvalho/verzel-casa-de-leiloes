@@ -15,6 +15,7 @@ export function useRoom(lotId: string, userId: string | undefined) {
   const [clockOffset, setClockOffset] = useState(0);
   const [extended, setExtended] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [gone, setGone] = useState(false);
   const loadRef = useRef<() => Promise<void>>(async () => {});
   const lastEnd = useRef<number | null>(null);
 
@@ -36,8 +37,12 @@ export function useRoom(lotId: string, userId: string | undefined) {
         setRoom(fresh);
         setClockOffset(new Date(fresh.serverTime).getTime() - Date.now());
         setError(null);
+        setGone(false);
       } catch (err) {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : "Não foi possível carregar o lote.");
+        if (cancelled) return;
+        // a room we already showed now answers 404: the auctioneer cancelled the lot
+        if (err instanceof ApiError && err.status === 404 && lastEnd.current !== null) setGone(true);
+        else setError(err instanceof ApiError ? err.message : "Não foi possível carregar o lote.");
       }
     };
     loadRef.current = load;
@@ -57,5 +62,5 @@ export function useRoom(lotId: string, userId: string | undefined) {
 
   const refresh = useCallback(() => loadRef.current(), []);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
-  return { room, error, clockOffset, extended, refresh, retry };
+  return { room, error, clockOffset, extended, gone, refresh, retry };
 }
