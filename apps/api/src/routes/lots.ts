@@ -26,13 +26,18 @@ const createSchema = z
 const listSchema = z.object({
   status: z.enum(["scheduled", "live", "ended"]).optional(),
   q: z.string().trim().min(1).optional(),
+  sort: z.enum(["ending", "price_desc", "price_asc", "most_bids"]).optional(),
+  minCents: z.coerce.number().int().min(0).optional(),
+  maxCents: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
 });
 
 export const lotsRouter = Router();
 
 lotsRouter.get("/", async (req, res) => {
-  const { status, q } = listSchema.parse(req.query);
-  res.json(await listLots({ phase: status, q }));
+  const { status, ...filter } = listSchema.parse(req.query);
+  res.json(await listLots({ phase: status, ...filter }));
 });
 
 lotsRouter.get("/mine", requireAuth, requireRole("auctioneer"), async (req, res) => {
