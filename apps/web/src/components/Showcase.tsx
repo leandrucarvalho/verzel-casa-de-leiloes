@@ -63,12 +63,12 @@ export function Showcase() {
           <p className="mt-1 text-muted">Dê lances ao vivo e confira o histórico de cada lote.</p>
         </div>
         <label className="w-full sm:w-72">
-          <span className="sr-only">Buscar lotes pelo título</span>
+          <span className="sr-only">Buscar lotes por título ou artista</span>
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por título"
+            placeholder="Buscar por título ou artista"
             className="w-full rounded-full border border-line bg-surface px-4 py-2 outline-none focus:border-brass"
           />
         </label>

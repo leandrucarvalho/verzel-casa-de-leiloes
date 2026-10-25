@@ -80,6 +80,14 @@ describe("GET /lots", () => {
     expect(res.body.map((l: { title: string }) => l.title)).toEqual(["Starry Night"]);
   });
 
+  it("filters by artist too", async () => {
+    const { auth } = await signUp("auctioneer", "l@example.com");
+    await create(auth, { title: "The Red Kerchief", attributes: { artist: "Claude Monet (French, 1840–1926)" } });
+    await create(auth, { title: "Starry Night", attributes: { artist: "Vincent van Gogh" } });
+    const res = await request(app).get("/lots?q=monet");
+    expect(res.body.map((l: { title: string }) => l.title)).toEqual(["The Red Kerchief"]);
+  });
+
   it("rejects an unknown status", async () => {
     expect((await request(app).get("/lots?status=foo")).status).toBe(400);
   });

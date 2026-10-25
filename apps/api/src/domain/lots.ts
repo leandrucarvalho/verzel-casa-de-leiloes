@@ -91,7 +91,7 @@ export async function listLots(filter: { phase?: Phase; q?: string; auctioneerId
   }
   if (filter.q) {
     params.push(`%${filter.q}%`);
-    where.push(`l.title ILIKE $${params.length}`);
+    where.push(`(l.title ILIKE $${params.length} OR l.attributes->>'artist' ILIKE $${params.length})`);
   }
   if (filter.phase) {
     params.push(filter.phase);
