@@ -8,6 +8,20 @@ Teste técnico Elite Dev (Verzel): leilões online com lances ao vivo, carteira 
 
 > **Primeira visita lenta.** A API roda no plano gratuito da Render, que dorme depois de cerca de 15 minutos sem uso. A primeira chamada depois disso pode levar até ~50 segundos. Se a vitrine demorar, aguarde e recarregue.
 
+## Telas
+
+**Vitrine:** lotes ao vivo, agendados e encerrados, com busca por título ou artista.
+
+![Vitrine com os lotes ao vivo](assets/screenshots/vitrine.png)
+
+**Sala do lote:** lance atual, contagem regressiva, histórico com apelidos e dados da obra. Quem está logado como licitante vê aqui o campo de lance e se está ganhando ou foi superado.
+
+![Sala do lote The Red Kerchief](assets/screenshots/sala-do-lote.png)
+
+**Auditoria pública:** cadeia de lances com o hash de cada um e o veredito de integridade, sem precisar de login.
+
+![Auditoria da cadeia de lances](assets/screenshots/auditoria.png)
+
 ## Contas de demonstração
 
 Criadas pelo seed. A senha de todas é `demo12345`.
