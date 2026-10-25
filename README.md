@@ -190,14 +190,18 @@ Para frear adivinhação de senha e abuso, a API limita (resposta `429` em portu
 
 | O quê | Limite | Como conta |
 |---|---|---|
-| Login | 10 falhas em 15 min | por e-mail **e** IP; só as falhas contam, e um login certo zera |
-| Login | 100 falhas em 15 min | por IP, para quem testa muitos e-mails |
+| Login | 10 falhas em 15 min | por **e-mail**, de qualquer rede; só as falhas contam, e um login certo zera |
+| Login | 100 falhas em 15 min | por endereço IP, para quem testa muitos e-mails (só quando a hospedagem informa o IP) |
 | Lances | 30 por minuto | por usuário, contando também os recusados |
-| Cadastro | 30 por hora | por IP |
+| Cadastro | 30 por hora | por endereço IP (só quando a hospedagem informa o IP) |
 
-Quem acerta a senha não é afetado: só as tentativas erradas contam. Durante um bloqueio, até a senha certa espera, senão o limite não atrapalharia quem adivinha. Como a chave do login inclui o IP, um terceiro em outra rede não trava a conta de outra pessoa, desde que a API enxergue o IP real de cada cliente (veja o limite abaixo).
+Quem acerta a senha não é afetado: só as tentativas erradas contam. Durante um bloqueio, até a senha certa espera, senão o limite não atrapalharia quem adivinha.
 
-**Limite:** os contadores ficam na memória de um processo. Reiniciar a API (um deploy, por exemplo) zera tudo, e com mais de uma instância cada uma conta sozinha. Para escalar, os contadores iriam para Redis ou uma tabela. Em produção a API confia em um salto de proxy (`trust proxy`) para ler o IP real atrás da Render. Se a Render entregasse o mesmo IP a todos, o limite por e-mail passaria a valer para todos juntos; por isso os limites são folgados.
+**Por que o limite do login é por e-mail e não por IP:** a primeira versão usava e-mail e IP juntos. Testando em produção, o bloqueio nunca disparava: atrás dos proxies da Render o endereço que a API enxerga muda de uma requisição para outra. Por isso a chave principal não depende de IP. O IP é lido do cabeçalho `CF-Connecting-IP` (a Render fica atrás da Cloudflare) e só entra como camada extra quando esse cabeçalho existe.
+
+**Limites:**
+- Quem quiser pode errar a senha de propósito e travar uma conta por 15 minutos (inclusive as contas demo). Para evitar isso seria preciso um CAPTCHA ou um token por dispositivo.
+- Os contadores ficam na memória de um processo. Reiniciar a API (um deploy, por exemplo) zera tudo, e com mais de uma instância cada uma conta sozinha. Para escalar, iriam para Redis ou uma tabela.
 
 ### Catálogo e resiliência
 
@@ -243,7 +247,7 @@ Dinheiro é sempre inteiro em centavos, nunca ponto flutuante.
 - **Depósito** é simulado, limitado a R$ 1.000.000,00 por vez, e só licitantes depositam.
 - **Eventos em tempo real** vivem na memória de um único processo. Com várias instâncias da API, o aviso instantâneo só chegaria a quem estivesse na mesma instância; o polling de 5 segundos cobre o resto. Para escalar, trocaria por Postgres `LISTEN/NOTIFY` ou Redis.
 - **Liquidação preguiçosa:** ler lotes, carteira ou comprovantes dispara a liquidação do que já venceu. É proposital, mas significa que essas leituras podem escrever no banco.
-- **Bloqueio por tentativas:** errar a senha 10 vezes bloqueia aquele e-mail, naquele IP, por 15 minutos. Um deploy da API zera os contadores (veja "Limite de tentativas").
+- **Bloqueio por tentativas:** errar a senha 10 vezes bloqueia aquele e-mail por 15 minutos, de qualquer rede. Um deploy da API zera os contadores (veja "Limite de tentativas").
 - **Token de login** fica no `localStorage` do navegador, o que é simples mas fica exposto a XSS. Não há recuperação de senha (fora do escopo do teste).
 - **Docker Compose** sobe o banco, a API e o front. Os segredos dele são padrões locais, não os de produção.
 
