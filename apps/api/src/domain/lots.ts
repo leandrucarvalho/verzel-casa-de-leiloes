@@ -79,7 +79,30 @@ export async function getLot(id: string): Promise<LotView | null> {
   return rows[0] ? toView(rows[0]) : null;
 }
 
-export async function listLots(filter: { phase?: Phase; q?: string; auctioneerId?: string }): Promise<LotView[]> {
+// What a lot costs right now: the leading bid, or the starting bid while nobody bid.
+const PRICE_SQL = "COALESCE(b.current_bid_cents, l.starting_bid_cents)";
+
+// Whitelist: the sort key from the query string never reaches the SQL text.
+const SORTS = {
+  ending: "l.ends_at ASC",
+  price_desc: `${PRICE_SQL} DESC, l.ends_at ASC`,
+  price_asc: `${PRICE_SQL} ASC, l.ends_at ASC`,
+  most_bids: "COALESCE(b.bid_count, 0) DESC, l.ends_at ASC",
+} as const;
+export type LotSort = keyof typeof SORTS;
+
+export interface LotFilter {
+  phase?: Phase;
+  q?: string;
+  auctioneerId?: string;
+  sort?: LotSort;
+  minCents?: number;
+  maxCents?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export async function listLots(filter: LotFilter): Promise<LotView[]> {
   const where: string[] = [];
   const params: unknown[] = [];
   if (filter.auctioneerId) {
@@ -97,7 +120,21 @@ export async function listLots(filter: { phase?: Phase; q?: string; auctioneerId
     params.push(filter.phase);
     where.push(`l.status <> 'cancelled' AND (${PHASE_SQL}) = $${params.length}`);
   }
-  const { rows } = await pool.query(`${SELECT_LOTS} WHERE ${where.join(" AND ")} ORDER BY l.ends_at ASC`, params);
+  if (filter.minCents !== undefined) {
+    params.push(filter.minCents);
+    where.push(`${PRICE_SQL} >= $${params.length}`);
+  }
+  if (filter.maxCents !== undefined) {
+    params.push(filter.maxCents);
+    where.push(`${PRICE_SQL} <= $${params.length}`);
+  }
+  // l.id as the last key keeps pages stable when two lots tie on the sort key
+  let sql = `${SELECT_LOTS} WHERE ${where.join(" AND ")} ORDER BY ${SORTS[filter.sort ?? "ending"]}, l.id`;
+  if (filter.limit !== undefined) {
+    params.push(filter.limit, filter.offset ?? 0);
+    sql += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  }
+  const { rows } = await pool.query(sql, params);
   return rows.map(toView);
 }
 

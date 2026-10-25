@@ -88,6 +88,65 @@ describe("GET /lots", () => {
     expect(res.body.map((l: { title: string }) => l.title)).toEqual(["The Red Kerchief"]);
   });
 
+  describe("sorting, price range and pages", () => {
+    // three lots: cheap one ends last, dear one ends first
+    async function seedThree() {
+      const { auth } = await signUp("auctioneer", "l@example.com");
+      await create(auth, { title: "barato", startingBidCents: 10_000, endsAt: hours(3) });
+      await create(auth, { title: "medio", startingBidCents: 30_000, endsAt: hours(2) });
+      await create(auth, { title: "caro", startingBidCents: 90_000, endsAt: hours(1) });
+      return auth;
+    }
+    const titles = async (query: string) =>
+      ((await request(app).get(`/lots?${query}`)).body as { title: string }[]).map((l) => l.title);
+
+    it("sorts by ending time by default and by price on request", async () => {
+      await seedThree();
+      expect(await titles("")).toEqual(["caro", "medio", "barato"]);
+      expect(await titles("sort=price_asc")).toEqual(["barato", "medio", "caro"]);
+      expect(await titles("sort=price_desc")).toEqual(["caro", "medio", "barato"]);
+    });
+
+    it("sorts by number of bids", async () => {
+      await seedThree();
+      const bidder = await signUp("bidder", "b@example.com");
+      await request(app).post("/wallet/deposit").set("Authorization", bidder.auth).send({ amountCents: 1_000_000 });
+      const lots = (await request(app).get("/lots?sort=price_asc")).body as { id: string; title: string }[];
+      await request(app).post(`/lots/${lots[0]!.id}/bids`).set("Authorization", bidder.auth).send({ amountCents: 10_000 });
+      expect((await titles("sort=most_bids"))[0]).toBe("barato");
+    });
+
+    it("uses the leading bid, not the starting bid, as the price", async () => {
+      await seedThree();
+      const bidder = await signUp("bidder", "b@example.com");
+      await request(app).post("/wallet/deposit").set("Authorization", bidder.auth).send({ amountCents: 1_000_000 });
+      const cheap = ((await request(app).get("/lots?sort=price_asc")).body as { id: string }[])[0]!;
+      await request(app).post(`/lots/${cheap.id}/bids`).set("Authorization", bidder.auth).send({ amountCents: 95_000 });
+      expect(await titles("sort=price_desc")).toEqual(["barato", "caro", "medio"]);
+    });
+
+    it("filters by price range (inclusive)", async () => {
+      await seedThree();
+      expect(await titles("minCents=20000&maxCents=50000")).toEqual(["medio"]);
+      expect(await titles("minCents=30000")).toEqual(["caro", "medio"]);
+      expect(await titles("maxCents=10000")).toEqual(["barato"]);
+    });
+
+    it("pages with limit and offset in a stable order", async () => {
+      await seedThree();
+      expect(await titles("limit=2")).toEqual(["caro", "medio"]);
+      expect(await titles("limit=2&offset=2")).toEqual(["barato"]);
+      expect(await titles("limit=2&offset=5")).toEqual([]);
+    });
+
+    it("rejects bad sort, negative price and absurd limits", async () => {
+      expect((await request(app).get("/lots?sort=drop_table")).status).toBe(400);
+      expect((await request(app).get("/lots?minCents=-1")).status).toBe(400);
+      expect((await request(app).get("/lots?limit=0")).status).toBe(400);
+      expect((await request(app).get("/lots?limit=100000")).status).toBe(400);
+    });
+  });
+
   it("rejects an unknown status", async () => {
     expect((await request(app).get("/lots?status=foo")).status).toBe(400);
   });
@@ -129,7 +188,14 @@ describe("POST /lots/:id/cancel", () => {
 
     const brunoWallet = (await request(app).get("/wallet").set("Authorization", bruno.auth)).body;
     expect(brunoWallet).toMatchObject({ totalCents: 50_000, committedCents: 0, availableCents: 50_000 });
-    expect(brunoWallet.entries[0]).toMatchObject({ kind: "refund", amountCents: 10_500, lotId: lot.body.id });
+    expect(brunoWallet.entries[0]).toMatchObject({
+      kind: "refund",
+      amountCents: 10_500,
+      lotId: lot.body.id,
+      lotTitle: "A Sunday on La Grande Jatte",
+    });
+    // deposits belong to no lot
+    expect(brunoWallet.entries.at(-1)).toMatchObject({ kind: "deposit", lotId: null, lotTitle: null });
 
     // Ana was outbid earlier, so she had nothing left to release
     const anaWallet = (await request(app).get("/wallet").set("Authorization", ana.auth)).body;

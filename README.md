@@ -101,7 +101,7 @@ Front: `NEXT_PUBLIC_API_URL`, a URL da API.
 ### Testes e qualidade
 
 ```bash
-npm test          # API (103 testes) e web (19 testes)
+npm test          # API (109 testes) e web (21 testes)
 npm run lint
 npm run typecheck
 npm run build
@@ -121,7 +121,7 @@ npm run e2e
 
 O Playwright sobe a API e o front sozinho (ou reaproveita os que já estiverem rodando) e usa o Chrome já instalado na máquina, então não baixa navegador. Se a porta 3000 estiver ocupada, use `E2E_WEB_PORT=3010 npm run e2e`. Cada execução cria um lote próprio e o cancela no fim, então não mexe nos lotes nem nos saldos do seed.
 
-**Por que fica fora da CI:** de propósito. Ele precisa de banco semeado, API e front no ar e um navegador, o que deixaria a CI mais lenta e frágil (um atraso de rede faria o merge falhar sem haver defeito). A CI continua rodando lint, tipos, os 103 testes da API (que já cobrem as regras de lance, saldo, liquidação, auditoria e limites) e o build. O teste ponta a ponta serve para confirmar, antes de uma entrega, que as telas e a API conversam como esperado. Se o projeto crescesse, o próximo passo natural seria rodá-lo na CI contra um banco efêmero.
+**Por que fica fora da CI:** de propósito. Ele precisa de banco semeado, API e front no ar e um navegador, o que deixaria a CI mais lenta e frágil (um atraso de rede faria o merge falhar sem haver defeito). A CI continua rodando lint, tipos, os 109 testes da API (que já cobrem as regras de lance, saldo, liquidação, auditoria e limites) e o build. O teste ponta a ponta serve para confirmar, antes de uma entrega, que as telas e a API conversam como esperado. Se o projeto crescesse, o próximo passo natural seria rodá-lo na CI contra um banco efêmero.
 
 ## Roteiro para testar cada função
 
@@ -129,14 +129,14 @@ Use o site publicado ou o ambiente local. As contas estão na tabela de demonstr
 
 | Função | Onde | Como simular |
 |---|---|---|
-| Vitrine e busca | `/` | Alterne entre Ao vivo, Agendados e Encerrados e use o campo de busca por título ou artista. Lotes cancelados não aparecem. |
+| Vitrine e busca | `/` | Alterne entre Ao vivo, Agendados e Encerrados, busque por título ou artista, ordene (termina primeiro, maior ou menor preço, mais lances), filtre por faixa de preço e use "Carregar mais" para as próximas páginas. Lotes cancelados não aparecem. |
 | Cadastro e login | `/cadastro`, `/login` | Crie uma conta de licitante ou de leiloeiro. O olhinho mostra ou oculta a senha. |
 | Criar lote | `/painel` (leiloeiro) | Busque uma obra (ex.: `monet`), escolha, defina lance inicial, incremento, início e fim, e crie. |
 | Lote agendado | `/painel` | Crie um lote com início no futuro. Ele aparece em Agendados, e a sala mostra o campo de lance desabilitado ("ainda não começou"). |
-| Dar lance e feedback | `/lotes/[id]` (licitante) | Dê um lance válido. Depois tente: abaixo do mínimo, de novo como líder ("já está ganhando"), e um valor maior que o saldo disponível (saldo insuficiente). Cada recusa mostra a mensagem da API. |
+| Dar lance e feedback | `/lotes/[id]` (licitante) | Dê um lance válido. Depois tente: abaixo do mínimo, de novo como líder ("já está ganhando"), e um valor maior que o saldo disponível (saldo insuficiente). Cada recusa mostra a mensagem da API. Os botões de lance rápido (mínimo e dois valores acima) só preenchem o campo, o envio continua manual. |
 | Tempo real | `/lotes/[id]` em duas janelas | Dê um lance como Ana. Na janela do Bruno aparece o novo lance e "Você foi superado" sem recarregar. |
 | Saldo comprometido | `/carteira` | Antes e depois de liderar um lote: o comprometido sobe, e volta quando alguém cobre o lance. |
-| Depósito simulado | `/carteira` | Informe um valor, por exemplo `500,00`. |
+| Depósito simulado e extrato | `/carteira` | Informe um valor, por exemplo `500,00`. No extrato, filtre por Depósitos, Arremates ou Estornos e abra o lote pelo título. |
 | Anti-sniping | `/painel` + `/lotes/[id]` | Crie um lote que termine em cerca de 3 minutos, dê um lance quando faltar menos de 2 minutos: o fim avança 2 minutos e a sala avisa. |
 | Liquidação e comprovante | `/painel` + `/arremates` | Crie um lote que termine em 2 a 3 minutos, dê um lance e espere. Ele passa para Encerrados, o saldo do vencedor é debitado, o leiloeiro recebe, e o comprovante aparece em Meus arremates. |
 | Comprovante público | `/comprovante/[token]` | Copie o link de compartilhamento em Meus arremates e abra em janela anônima, sem login. |
@@ -234,7 +234,7 @@ Resumo das rotas (todas em JSON):
 | Rota | Quem | O que faz |
 |---|---|---|
 | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` | todos | cadastro, login, sessão |
-| `GET /lots?status=live\|scheduled\|ended&q=` | todos | vitrine (cancelados não aparecem) |
+| `GET /lots?status=live\|scheduled\|ended&q=&sort=&minCents=&maxCents=&limit=&offset=` | todos | vitrine (cancelados não aparecem); `sort` aceita `ending`, `price_desc`, `price_asc`, `most_bids` |
 | `GET /lots/:id/room` | todos | sala: lance atual, histórico, posição de quem está logado |
 | `GET /lots/:id/events` | todos | SSE |
 | `GET /lots/:id/audit` | todos | cadeia de hashes e veredito |

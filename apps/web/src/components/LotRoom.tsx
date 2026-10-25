@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { URGENT_MS, formatRemaining } from "@/lib/countdown";
 import { formatBRL, formatDateTime } from "@/lib/format";
@@ -10,12 +10,15 @@ import { useNow } from "@/lib/useNow";
 import { useRoom } from "@/lib/useRoom";
 import { BidPanel } from "./BidPanel";
 
+const HISTORY_STEP = 10;
+
 const attributeLabels: Record<string, string> = { artist: "Artista", date: "Data", medium: "Técnica", origin: "Origem" };
 
 export function LotRoom({ lotId }: { lotId: string }) {
   const { user } = useAuth();
   const { room, error, clockOffset, extended, gone, refresh, retry } = useRoom(lotId, user?.id);
   const now = useNow();
+  const [shown, setShown] = useState(HISTORY_STEP);
 
   const live = !gone && room?.lot.status === "live";
   const remaining = room && now ? new Date(room.lot.endsAt).getTime() - (now + clockOffset) : null;
@@ -136,20 +139,37 @@ export function LotRoom({ lotId }: { lotId: string }) {
           {room.bids.length === 0 ? (
             <p className="mt-3 text-muted">Ainda não há lances. Seja o primeiro.</p>
           ) : (
-            <ol className="mt-3 divide-y divide-line rounded-xl border border-line bg-surface">
-              {room.bids.map((bid, i) => (
-                <li key={bid.seq} className={`flex items-center justify-between gap-3 px-4 py-3 ${bid.mine ? "bg-brass/10" : ""}`}>
-                  <div>
-                    <p className="font-medium">
-                      {bid.mine ? "Você" : bid.bidder}
-                      {i === 0 && <span className="ml-2 rounded-full bg-live/15 px-2 py-0.5 text-xs text-live">lidera</span>}
-                    </p>
-                    <p className="text-xs text-muted">{formatDateTime(bid.placedAt)}</p>
-                  </div>
-                  <p className="font-semibold tabular-nums">{formatBRL(bid.amountCents)}</p>
-                </li>
-              ))}
-            </ol>
+            <>
+              <ol className="mt-3 divide-y divide-line rounded-xl border border-line bg-surface">
+                {room.bids.slice(0, shown).map((bid, i) => (
+                  <li key={bid.seq} className={`flex items-center justify-between gap-3 px-4 py-3 ${bid.mine ? "bg-brass/10" : ""}`}>
+                    <div>
+                      <p className="font-medium">
+                        {bid.mine ? "Você" : bid.bidder}
+                        {i === 0 && <span className="ml-2 rounded-full bg-live/15 px-2 py-0.5 text-xs text-live">lidera</span>}
+                      </p>
+                      <p className="text-xs text-muted">{formatDateTime(bid.placedAt)}</p>
+                    </div>
+                    <p className="font-semibold tabular-nums">{formatBRL(bid.amountCents)}</p>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+                {shown < room.bids.length && (
+                  <button type="button" onClick={() => setShown((n) => n + HISTORY_STEP)} className="underline underline-offset-4 hover:text-ink">
+                    Mostrar mais {Math.min(HISTORY_STEP, room.bids.length - shown)}
+                  </button>
+                )}
+                {lot.bidCount > room.bids.length && shown >= room.bids.length && (
+                  <span>
+                    Mostrando os {room.bids.length} lances mais recentes de {lot.bidCount}.{" "}
+                    <Link href={`/auditoria/${lot.id}`} className="underline underline-offset-4 hover:text-ink">
+                      Histórico completo na auditoria
+                    </Link>
+                  </span>
+                )}
+              </p>
+            </>
           )}
         </section>
 
