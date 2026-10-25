@@ -184,6 +184,21 @@ Quando o lote é encerrado, o comprovante guarda o **hash final**. Com isso, rem
 
 Auditoria, histórico e comprovante mostram licitantes como `Licitante a1b2c3`, um HMAC curto por lote. Dá para ver que é a mesma pessoa dentro do lote, mas não dá para ligar o alias a uma conta nem entre lotes.
 
+### Limite de tentativas
+
+Para frear adivinhação de senha e abuso, a API limita (resposta `429` em português, com o cabeçalho `Retry-After`):
+
+| O quê | Limite | Como conta |
+|---|---|---|
+| Login | 10 falhas em 15 min | por e-mail **e** IP; só as falhas contam, e um login certo zera |
+| Login | 100 falhas em 15 min | por IP, para quem testa muitos e-mails |
+| Lances | 30 por minuto | por usuário, contando também os recusados |
+| Cadastro | 30 por hora | por IP |
+
+Quem acerta a senha não é afetado: só as tentativas erradas contam. Durante um bloqueio, até a senha certa espera, senão o limite não atrapalharia quem adivinha. Como a chave do login inclui o IP, um terceiro em outra rede não trava a conta de outra pessoa, desde que a API enxergue o IP real de cada cliente (veja o limite abaixo).
+
+**Limite:** os contadores ficam na memória de um processo. Reiniciar a API (um deploy, por exemplo) zera tudo, e com mais de uma instância cada uma conta sozinha. Para escalar, os contadores iriam para Redis ou uma tabela. Em produção a API confia em um salto de proxy (`trust proxy`) para ler o IP real atrás da Render. Se a Render entregasse o mesmo IP a todos, o limite por e-mail passaria a valer para todos juntos; por isso os limites são folgados.
+
 ### Catálogo e resiliência
 
 As obras vêm da API aberta do Cleveland Museum of Art, só na busca do leiloeiro (cache de 10 minutos, com cópia antiga como reserva). Ao criar o lote, o título, a imagem e os atributos são **copiados para o lote**. Por isso vitrine, sala, auditoria e comprovante continuam funcionando mesmo com a API externa fora do ar. Se a busca falhar sem cópia, o painel mostra um erro claro (`catalog_unavailable`, HTTP 503).
@@ -228,6 +243,7 @@ Dinheiro é sempre inteiro em centavos, nunca ponto flutuante.
 - **Depósito** é simulado, limitado a R$ 1.000.000,00 por vez, e só licitantes depositam.
 - **Eventos em tempo real** vivem na memória de um único processo. Com várias instâncias da API, o aviso instantâneo só chegaria a quem estivesse na mesma instância; o polling de 5 segundos cobre o resto. Para escalar, trocaria por Postgres `LISTEN/NOTIFY` ou Redis.
 - **Liquidação preguiçosa:** ler lotes, carteira ou comprovantes dispara a liquidação do que já venceu. É proposital, mas significa que essas leituras podem escrever no banco.
+- **Bloqueio por tentativas:** errar a senha 10 vezes bloqueia aquele e-mail, naquele IP, por 15 minutos. Um deploy da API zera os contadores (veja "Limite de tentativas").
 - **Token de login** fica no `localStorage` do navegador, o que é simples mas fica exposto a XSS. Não há recuperação de senha (fora do escopo do teste).
 - **Docker Compose** sobe o banco, a API e o front. Os segredos dele são padrões locais, não os de produção.
 

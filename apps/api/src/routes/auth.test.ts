@@ -65,3 +65,37 @@ describe("GET /auth/me", () => {
     expect((await request(app).get("/auth/me").set("Authorization", "Bearer lixo")).status).toBe(401);
   });
 });
+
+describe("login rate limit", () => {
+  const wrong = () => request(app).post("/auth/login").send({ email: "ana@example.com", password: "errada-errada" });
+
+  it("blocks an account after 10 failed attempts and tells how long to wait", async () => {
+    await request(app).post("/auth/register").send(bidder);
+    for (let i = 0; i < 10; i++) expect((await wrong()).status).toBe(401);
+    const res = await wrong();
+    expect(res.status).toBe(429);
+    expect(res.body.error).toBe("too_many_requests");
+    expect(res.body.message).toMatch(/Tente de novo em/);
+    expect(Number(res.headers["retry-after"])).toBeGreaterThan(0);
+    // even the right password waits, otherwise the limit would not slow a password guesser down
+    const right = await request(app).post("/auth/login").send({ email: "ana@example.com", password: bidder.password });
+    expect(right.status).toBe(429);
+  });
+
+  it("does not count the failures of one account against another", async () => {
+    await request(app).post("/auth/register").send(bidder);
+    await request(app).post("/auth/register").send({ ...bidder, email: "bruno@example.com", nickname: "bruno" });
+    for (let i = 0; i < 10; i++) await wrong();
+    const other = await request(app).post("/auth/login").send({ email: "bruno@example.com", password: bidder.password });
+    expect(other.status).toBe(200);
+  });
+
+  it("a correct login clears the failures", async () => {
+    await request(app).post("/auth/register").send(bidder);
+    for (let round = 0; round < 3; round++) {
+      for (let i = 0; i < 9; i++) await wrong();
+      const ok = await request(app).post("/auth/login").send({ email: "ana@example.com", password: bidder.password });
+      expect(ok.status).toBe(200);
+    }
+  });
+});

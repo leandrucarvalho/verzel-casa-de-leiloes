@@ -228,3 +228,17 @@ describe("concurrency", () => {
     expect(results.map((r) => r.status)).toEqual([201, 201]);
   });
 });
+
+describe("bid rate limit", () => {
+  it("refuses a bidder who sends more than 30 bids in a minute, without touching other bidders", async () => {
+    const seller = await signUp("auctioneer", "l@example.com");
+    const spammer = await signUp("bidder", "s@example.com", 100_000);
+    const other = await signUp("bidder", "o@example.com", 100_000);
+    const lot = await createLot(seller.auth);
+    for (let i = 0; i < 30; i++) expect((await bid(lot, spammer.auth, 1)).status).toBe(422);
+    const blocked = await bid(lot, spammer.auth, 10_000);
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error).toBe("too_many_requests");
+    expect((await bid(lot, other.auth, 10_000)).status).toBe(201);
+  });
+});
