@@ -67,7 +67,8 @@ describe("GET /auth/me", () => {
 });
 
 describe("login rate limit", () => {
-  const wrong = () => request(app).post("/auth/login").send({ email: "ana@example.com", password: "errada-errada" });
+  const wrong = (headers: Record<string, string> = {}) =>
+    request(app).post("/auth/login").set(headers).send({ email: "ana@example.com", password: "errada-errada" });
 
   it("blocks an account after 10 failed attempts and tells how long to wait", async () => {
     await request(app).post("/auth/register").send(bidder);
@@ -80,6 +81,13 @@ describe("login rate limit", () => {
     // even the right password waits, otherwise the limit would not slow a password guesser down
     const right = await request(app).post("/auth/login").send({ email: "ana@example.com", password: bidder.password });
     expect(right.status).toBe(429);
+  });
+
+  it("blocks the account no matter which address each attempt appears to come from", async () => {
+    await request(app).post("/auth/register").send(bidder);
+    for (let i = 0; i < 10; i++) expect((await wrong({ "CF-Connecting-IP": `203.0.113.${i}` })).status).toBe(401);
+    expect((await wrong({ "CF-Connecting-IP": "203.0.113.200" })).status).toBe(429);
+    expect((await wrong({ "X-Forwarded-For": "198.51.100.7" })).status).toBe(429);
   });
 
   it("does not count the failures of one account against another", async () => {
@@ -97,5 +105,19 @@ describe("login rate limit", () => {
       const ok = await request(app).post("/auth/login").send({ email: "ana@example.com", password: bidder.password });
       expect(ok.status).toBe(200);
     }
+  });
+
+  const guess = (n: number, headers: Record<string, string> = {}) =>
+    request(app).post("/auth/login").set(headers).send({ email: `ninguem${n}@example.com`, password: "errada-errada" });
+
+  it("also blocks an address that tries many different e-mails, when the host reports the address", async () => {
+    const from = { "CF-Connecting-IP": "203.0.113.9" };
+    for (let i = 0; i < 100; i++) expect((await guess(i, from)).status).toBe(401);
+    expect((await guess(100, from)).status).toBe(429);
+    expect((await guess(101, { "CF-Connecting-IP": "203.0.113.10" })).status).toBe(401);
+  });
+
+  it("skips the per-address limit when the host does not report an address", async () => {
+    for (let i = 0; i < 105; i++) expect((await guess(i)).status).toBe(401);
   });
 });
