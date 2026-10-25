@@ -109,6 +109,20 @@ npm run build
 
 Os testes da API precisam do Postgres do Docker. Eles criam e migram sozinhos um banco isolado, `leilao_test`, e não tocam nos dados de desenvolvimento.
 
+### Teste ponta a ponta (manual)
+
+Além dos testes automáticos, há um teste de fumaça com Playwright que percorre o fluxo principal em um navegador de verdade: login pelo formulário (com o botão de mostrar a senha), busca do lote na vitrine, um lance recusado, um lance válido, ser superado em tempo real por outro licitante, e a auditoria pública com a cadeia íntegra. O arquivo é `apps/web/e2e/smoke.spec.ts`.
+
+```bash
+docker compose up -d db
+npm run migrate -w apps/api && npm run seed -w apps/api   # só na primeira vez
+npm run e2e
+```
+
+O Playwright sobe a API e o front sozinho (ou reaproveita os que já estiverem rodando) e usa o Chrome já instalado na máquina, então não baixa navegador. Se a porta 3000 estiver ocupada, use `E2E_WEB_PORT=3010 npm run e2e`. Cada execução cria um lote próprio e o cancela no fim, então não mexe nos lotes nem nos saldos do seed.
+
+**Por que fica fora da CI:** de propósito. Ele precisa de banco semeado, API e front no ar e um navegador, o que deixaria a CI mais lenta e frágil (um atraso de rede faria o merge falhar sem haver defeito). A CI continua rodando lint, tipos, os 103 testes da API (que já cobrem as regras de lance, saldo, liquidação, auditoria e limites) e o build. O teste ponta a ponta serve para confirmar, antes de uma entrega, que as telas e a API conversam como esperado. Se o projeto crescesse, o próximo passo natural seria rodá-lo na CI contra um banco efêmero.
+
 ## Roteiro para testar cada função
 
 Use o site publicado ou o ambiente local. As contas estão na tabela de demonstração acima. Para ver o tempo real, abra duas janelas, uma anônima, com contas diferentes.
