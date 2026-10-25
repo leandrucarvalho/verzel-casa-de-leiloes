@@ -10,7 +10,7 @@ interface Wallet {
   totalCents: number;
   committedCents: number;
   availableCents: number;
-  entries: { id: number; kind: string; amountCents: number; lotId: string | null; createdAt: string }[];
+  entries: { id: number; kind: string; amountCents: number; lotId: string | null; lotTitle: string | null; createdAt: string }[];
 }
 
 const kindLabels: Record<string, string> = {
@@ -19,6 +19,13 @@ const kindLabels: Record<string, string> = {
   settlement_credit: "Venda recebida",
   refund: "Estorno (lote cancelado)",
 };
+
+const filters: { id: string; label: string; kinds: string[] | null }[] = [
+  { id: "all", label: "Todos", kinds: null },
+  { id: "deposit", label: "Depósitos", kinds: ["deposit"] },
+  { id: "win", label: "Arremates", kinds: ["settlement_debit"] },
+  { id: "refund", label: "Estornos", kinds: ["refund"] },
+];
 
 function Figure({ label, cents, hint }: { label: string; cents: number; hint: string }) {
   return (
@@ -35,6 +42,7 @@ export function WalletView() {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [filter, setFilter] = useState("all");
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -56,6 +64,9 @@ export function WalletView() {
       setBusy(false);
     }
   }
+
+  const kinds = filters.find((f) => f.id === filter)?.kinds;
+  const entries = wallet ? wallet.entries.filter((e) => !kinds || kinds.includes(e.kind)) : [];
 
   if (error && !wallet) return <p role="alert" className="text-danger">{error}</p>;
   if (!wallet) return <div className="h-40 animate-pulse rounded-xl bg-line/60" aria-busy="true" />;
@@ -98,22 +109,33 @@ export function WalletView() {
 
       <section>
         <h2 className="text-xl font-semibold">Extrato</h2>
-        {wallet.entries.length === 0 ? (
-          <p className="mt-3 text-muted">Nenhuma movimentação ainda.</p>
+        <p className="mt-1 text-sm text-muted">Mostrando as últimas movimentações (no máximo 50).</p>
+        <div role="group" aria-label="Filtrar extrato" className="mt-3 flex flex-wrap gap-2">
+          {filters.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              aria-pressed={filter === f.id}
+              onClick={() => setFilter(f.id)}
+              className={`rounded-full border px-3 py-1 text-sm ${filter === f.id ? "border-brass bg-brass/10" : "border-line text-muted hover:text-ink"}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {entries.length === 0 ? (
+          <p className="mt-3 text-muted">{wallet.entries.length === 0 ? "Nenhuma movimentação ainda." : "Nenhuma movimentação desse tipo."}</p>
         ) : (
           <ul className="mt-3 divide-y divide-line rounded-xl border border-line bg-surface">
-            {wallet.entries.map((e) => (
+            {entries.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <div>
-                  <p className="font-medium">
-                    {e.lotId ? (
-                      <Link href={`/lotes/${e.lotId}`} className="underline underline-offset-4">
-                        {kindLabels[e.kind] ?? e.kind}
-                      </Link>
-                    ) : (
-                      (kindLabels[e.kind] ?? e.kind)
-                    )}
-                  </p>
+                <div className="min-w-0">
+                  <p className="font-medium">{kindLabels[e.kind] ?? e.kind}</p>
+                  {e.lotId && (
+                    <Link href={`/lotes/${e.lotId}`} className="block truncate text-sm underline underline-offset-4">
+                      {e.lotTitle ?? "Ver lote"}
+                    </Link>
+                  )}
                   <p className="text-xs text-muted">{formatDateTime(e.createdAt)}</p>
                 </div>
                 {e.kind === "refund" ? (
