@@ -7,6 +7,7 @@ import { onLotChanged } from "../domain/events.js";
 import { roomView } from "../domain/room.js";
 import { cancelLot, createLot, getLot, listLots, listParticipating, totalReceived } from "../domain/lots.js";
 import { HttpError } from "../errors.js";
+import { bidsByUser } from "../rateLimit.js";
 
 const createSchema = z
   .object({
@@ -107,5 +108,6 @@ lotsRouter.post("/:id/bids", requireAuth, requireRole("bidder"), async (req, res
   const id = z.uuid().safeParse(req.params.id);
   if (!id.success) throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
   const { amountCents } = bidSchema.parse(req.body);
+  bidsByUser.take(req.user!.id);
   res.status(201).json(await placeBid(id.data, req.user!.id, amountCents));
 });
