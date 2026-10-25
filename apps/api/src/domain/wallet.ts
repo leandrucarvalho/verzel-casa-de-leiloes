@@ -7,14 +7,16 @@ export interface WalletView {
   totalCents: number;
   committedCents: number;
   availableCents: number;
-  entries: { id: number; kind: string; amountCents: number; lotId: string | null; createdAt: string }[];
+  entries: { id: number; kind: string; amountCents: number; lotId: string | null; lotTitle: string | null; createdAt: string }[];
 }
 
 export async function getWallet(userId: string): Promise<WalletView> {
   const user = await pool.query("SELECT balance_cents, committed_cents FROM users WHERE id = $1", [userId]);
   if (!user.rows[0]) throw new HttpError(404, "user_not_found", "Usuário não encontrado.");
   const entries = await pool.query(
-    "SELECT id, kind, amount_cents, lot_id, created_at FROM wallet_entries WHERE user_id = $1 ORDER BY id DESC LIMIT 50",
+    `SELECT e.id, e.kind, e.amount_cents, e.lot_id, l.title AS lot_title, e.created_at
+     FROM wallet_entries e LEFT JOIN lots l ON l.id = e.lot_id
+     WHERE e.user_id = $1 ORDER BY e.id DESC LIMIT 50`,
     [userId],
   );
   const total = Number(user.rows[0].balance_cents);
@@ -28,6 +30,7 @@ export async function getWallet(userId: string): Promise<WalletView> {
       kind: e.kind,
       amountCents: Number(e.amount_cents),
       lotId: e.lot_id,
+      lotTitle: e.lot_title,
       createdAt: e.created_at.toISOString(),
     })),
   };

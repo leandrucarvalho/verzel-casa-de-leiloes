@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { User } from "@/lib/auth";
 import { formatBRL, parseBRLToCents } from "@/lib/format";
+import { quickBids } from "@/lib/quickBids";
 import type { Room } from "@/lib/types";
 
 type Feedback = { kind: "ok" | "error"; text: string } | null;
@@ -92,14 +93,20 @@ export function BidPanel({ room, user, onPlaced }: { room: Room; user: User | nu
           {busy ? "Enviando…" : "Dar lance"}
         </button>
       </div>
-      <button
-        type="button"
-        disabled={notStarted}
-        onClick={() => setAmount(plain(minimumNextBidCents))}
-        className="mt-2 text-sm text-muted underline underline-offset-4 hover:text-ink disabled:opacity-60"
-      >
-        Usar o lance mínimo: {formatBRL(minimumNextBidCents)}
-      </button>
+      <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Lances rápidos">
+        <span className="text-sm text-muted">Lances rápidos:</span>
+        {quickBids(minimumNextBidCents, lot.minIncrementCents).map((cents, i) => (
+          <button
+            key={cents}
+            type="button"
+            disabled={notStarted || busy}
+            onClick={() => setAmount(plain(cents))}
+            className="rounded-full border border-line px-3 py-1 text-sm hover:border-brass disabled:opacity-60"
+          >
+            {i === 0 ? `Mínimo ${formatBRL(cents)}` : formatBRL(cents)}
+          </button>
+        ))}
+      </div>
       {notStarted && <p className="mt-2 text-sm text-muted">Este lote ainda não começou. Os lances abrem no horário de início.</p>}
       {feedback && (
         <p role={feedback.kind === "error" ? "alert" : "status"} className={`mt-3 text-sm ${feedback.kind === "error" ? "text-danger" : "text-live"}`}>
