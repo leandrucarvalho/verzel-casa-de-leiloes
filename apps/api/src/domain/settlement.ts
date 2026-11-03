@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { pool } from "../db/pool.js";
 import { notifyLotChanged } from "./events.js";
+import type { BidRow, LotRow } from "./rows.js";
 
 // Settles one lot if it is due. Idempotent: the lot row lock plus the status check
 // make a second call (job and lazy access racing) a no-op.
@@ -8,15 +9,15 @@ export async function settleLot(lotId: string): Promise<boolean> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const lot = (await client.query("SELECT * FROM lots WHERE id = $1 FOR UPDATE", [lotId])).rows[0];
-    const now: Date = (await client.query("SELECT clock_timestamp() AS now")).rows[0].now;
+    const lot = (await client.query<LotRow>("SELECT * FROM lots WHERE id = $1 FOR UPDATE", [lotId])).rows[0];
+    const now = (await client.query<{ now: Date }>("SELECT clock_timestamp() AS now")).rows[0]!.now;
     if (!lot || lot.status !== "published" || lot.ends_at > now) {
       await client.query("ROLLBACK");
       return false;
     }
 
     const last = (
-      await client.query("SELECT bidder_id, amount_cents, hash FROM bids WHERE lot_id = $1 ORDER BY seq DESC LIMIT 1", [lotId])
+      await client.query<Pick<BidRow, "bidder_id" | "amount_cents" | "hash">>("SELECT bidder_id, amount_cents, hash FROM bids WHERE lot_id = $1 ORDER BY seq DESC LIMIT 1", [lotId])
     ).rows[0];
 
     if (!last) {
@@ -56,7 +57,7 @@ export async function settleLot(lotId: string): Promise<boolean> {
 }
 
 export async function settleDueLots(): Promise<number> {
-  const { rows } = await pool.query("SELECT id FROM lots WHERE status = 'published' AND ends_at <= clock_timestamp()");
+  const { rows } = await pool.query<{ id: string }>("SELECT id FROM lots WHERE status = 'published' AND ends_at <= clock_timestamp()");
   let settled = 0;
   for (const { id } of rows) {
     try {

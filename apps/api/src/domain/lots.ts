@@ -1,8 +1,9 @@
 import { pool } from "../db/pool.js";
 import { HttpError } from "../errors.js";
 import { notifyLotChanged } from "./events.js";
+import type { BidRow, LotListRow, LotRow, Phase } from "./rows.js";
 
-export type Phase = "scheduled" | "live" | "ended";
+export type { Phase };
 
 export interface NewLot {
   externalId: string;
@@ -32,21 +33,21 @@ const SELECT_LOTS = `
     SELECT max(amount_cents) AS current_bid_cents, count(*) AS bid_count FROM bids WHERE lot_id = l.id
   ) b ON true`;
 
-function toView(r: Record<string, any>) {
+function toView(r: LotListRow) {
   return {
-    id: r.id as string,
-    title: r.title as string,
-    imageUrl: r.image_url as string | null,
-    attributes: r.attributes as Record<string, unknown>,
+    id: r.id,
+    title: r.title,
+    imageUrl: r.image_url,
+    attributes: r.attributes,
     startingBidCents: Number(r.starting_bid_cents),
     minIncrementCents: Number(r.min_increment_cents),
-    startsAt: r.starts_at.toISOString() as string,
-    endsAt: r.ends_at.toISOString() as string,
-    status: (r.status === "cancelled" ? "cancelled" : r.phase) as Phase | "cancelled",
-    auctioneer: r.auctioneer_nickname as string,
+    startsAt: r.starts_at.toISOString(),
+    endsAt: r.ends_at.toISOString(),
+    status: (r.status === "cancelled" ? "cancelled" : r.phase) satisfies Phase | "cancelled",
+    auctioneer: r.auctioneer_nickname,
     currentBidCents: r.current_bid_cents === null ? null : Number(r.current_bid_cents),
     // set once settled: null while open, "sold" or "unsold" afterwards
-    result: (r.status === "settled" ? (r.winner_id ? "sold" : "unsold") : null) as "sold" | "unsold" | null,
+    result: (r.status === "settled" ? (r.winner_id ? "sold" : "unsold") : null) satisfies "sold" | "unsold" | null,
     winningBidCents: r.winning_bid_cents === null ? null : Number(r.winning_bid_cents),
     bidCount: Number(r.bid_count),
   };
@@ -55,7 +56,7 @@ function toView(r: Record<string, any>) {
 export type LotView = ReturnType<typeof toView>;
 
 export async function createLot(auctioneerId: string, lot: NewLot): Promise<LotView> {
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<{ id: string }>(
     `INSERT INTO lots (auctioneer_id, external_id, title, image_url, attributes,
        starting_bid_cents, min_increment_cents, starts_at, ends_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
@@ -71,11 +72,11 @@ export async function createLot(auctioneerId: string, lot: NewLot): Promise<LotV
       lot.endsAt,
     ],
   );
-  return (await getLot(rows[0].id))!;
+  return (await getLot(rows[0]!.id))!;
 }
 
 export async function getLot(id: string): Promise<LotView | null> {
-  const { rows } = await pool.query(`${SELECT_LOTS} WHERE l.id = $1`, [id]);
+  const { rows } = await pool.query<LotListRow>(`${SELECT_LOTS} WHERE l.id = $1`, [id]);
   return rows[0] ? toView(rows[0]) : null;
 }
 
@@ -134,43 +135,43 @@ export async function listLots(filter: LotFilter): Promise<LotView[]> {
     params.push(filter.limit, filter.offset ?? 0);
     sql += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
   }
-  const { rows } = await pool.query(sql, params);
+  const { rows } = await pool.query<LotListRow>(sql, params);
   return rows.map(toView);
 }
 
 // Lots where the bidder placed at least one bid, with their standing in each one.
 export async function listParticipating(bidderId: string) {
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<LotListRow>(
     `${SELECT_LOTS} WHERE EXISTS (SELECT 1 FROM bids x WHERE x.lot_id = l.id AND x.bidder_id = $1) ORDER BY l.ends_at DESC`,
     [bidderId],
   );
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
-  const standing = await pool.query(
+  const standing = await pool.query<{ lot_id: string; my_bid: string; leader: string }>(
     `SELECT lot_id,
             max(amount_cents) FILTER (WHERE bidder_id = $1) AS my_bid,
             (array_agg(bidder_id ORDER BY seq DESC))[1] AS leader
      FROM bids WHERE lot_id = ANY($2) GROUP BY lot_id`,
     [bidderId, ids],
   );
-  const receipts = await pool.query("SELECT lot_id, token FROM receipts WHERE lot_id = ANY($1)", [ids]);
+  const receipts = await pool.query<{ lot_id: string; token: string }>("SELECT lot_id, token FROM receipts WHERE lot_id = ANY($1)", [ids]);
   return rows.map((r) => {
-    const s = standing.rows.find((x) => x.lot_id === r.id);
+    const s = standing.rows.find((x) => x.lot_id === r.id)!;
     return {
       ...toView(r),
       myBidCents: Number(s.my_bid),
       leading: s.leader === bidderId,
-      receiptToken: r.winner_id === bidderId ? (receipts.rows.find((x) => x.lot_id === r.id)?.token as string) : null,
+      receiptToken: r.winner_id === bidderId ? (receipts.rows.find((x) => x.lot_id === r.id)?.token ?? null) : null,
     };
   });
 }
 
 export async function totalReceived(auctioneerId: string): Promise<number> {
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<{ total: string }>(
     "SELECT COALESCE(sum(winning_bid_cents), 0) AS total FROM lots WHERE auctioneer_id = $1 AND status = 'settled'",
     [auctioneerId],
   );
-  return Number(rows[0].total);
+  return Number(rows[0]!.total);
 }
 
 // Cancelling a lot with bids releases what the leader had committed and records a refund entry.
@@ -180,14 +181,14 @@ export async function cancelLot(lotId: string, auctioneerId: string): Promise<Lo
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const lot = (await client.query("SELECT auctioneer_id, status, ends_at FROM lots WHERE id = $1 FOR UPDATE", [lotId])).rows[0];
+    const lot = (await client.query<Pick<LotRow, "auctioneer_id" | "status" | "ends_at">>("SELECT auctioneer_id, status, ends_at FROM lots WHERE id = $1 FOR UPDATE", [lotId])).rows[0];
     if (!lot || lot.auctioneer_id !== auctioneerId) throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
-    const now: Date = (await client.query("SELECT clock_timestamp() AS now")).rows[0].now;
+    const now = (await client.query<{ now: Date }>("SELECT clock_timestamp() AS now")).rows[0]!.now;
     if (lot.status !== "published" || lot.ends_at <= now) {
       throw new HttpError(409, "lot_not_cancellable", "Este lote não pode mais ser cancelado.");
     }
     const last = (
-      await client.query("SELECT bidder_id, amount_cents FROM bids WHERE lot_id = $1 ORDER BY seq DESC LIMIT 1", [lotId])
+      await client.query<Pick<BidRow, "bidder_id" | "amount_cents">>("SELECT bidder_id, amount_cents FROM bids WHERE lot_id = $1 ORDER BY seq DESC LIMIT 1", [lotId])
     ).rows[0];
     if (last) {
       await client.query("SELECT id FROM users WHERE id = $1 FOR UPDATE", [last.bidder_id]);
