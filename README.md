@@ -40,6 +40,8 @@ A interface é um tema escuro de "sala de leilão" (com tema claro pelo botão d
 - **Acessibilidade.** Contraste mínimo de 4,5:1 nos dois temas, alvos de toque de 44 px, foco visível, link "pular para o conteúdo", `prefers-reduced-motion` respeitado e avisos de lance em `role="status"`/`alert`.
 - **Tokens, não valores soltos.** Cores, superfícies e estados são variáveis CSS em `apps/web/src/app/globals.css`; componentes (`.btn`, `.card`, `.field`, `.chip`) e o `StatusBadge` mantêm o resto consistente.
 
+**Referências.** O desafio cita [Catawiki](https://www.catawiki.com/pt) e [Superbid](https://www.superbid.net) como referência de casa de leilões, para não copiar. Delas eu levei só a convenção do gênero, não o layout: o lote em primeiro plano sobre um fundo neutro de galeria, o selo de estado e o tempo restante sempre visíveis no cartão, e o preço atual como maior número da tela. Cores, tipografia e componentes são próprios. Não fiz uma análise detalhada dos dois sites; a comparação é de convenção, não de pixel.
+
 O ponto de partida foi o gerador de design system da skill [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) para "leilão de arte online" (luxo escuro, verde de lance, vermelho de "superado", urgência). Eu **não** segui a sugestão de fonte serifada, porque a primeira versão do front tinha justamente fundo creme, serifa e dourado, e foi apontada como genérica.
 
 ## Contas de demonstração
