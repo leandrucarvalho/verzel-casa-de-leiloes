@@ -1,7 +1,8 @@
 import request from "supertest";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { pool } from "../db/pool.js";
+import { addItem, stubCatalog } from "../test/catalog.js";
 import { resetDb } from "../test/db.js";
 
 const app = createApp();
@@ -19,8 +20,7 @@ async function signUp(role: "bidder" | "auctioneer", email: string, depositCents
 const newLot = async (auth: string, title: string) =>
   (
     await request(app).post("/lots").set("Authorization", auth).send({
-      externalId: "1",
-      title,
+      externalId: addItem(title),
       startingBidCents: 10_000,
       minIncrementCents: 500,
       startsAt: minutes(-10),
@@ -33,7 +33,11 @@ const bid = (lotId: string, auth: string, amountCents: number) =>
 
 const mine = async (auth: string) => (await request(app).get("/lots/participating").set("Authorization", auth)).body;
 
-beforeEach(resetDb);
+beforeEach(async () => {
+  await resetDb();
+  stubCatalog();
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("GET /lots/participating", () => {
   it("lists the lots the bidder bid on with their standing", async () => {

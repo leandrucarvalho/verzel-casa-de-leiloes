@@ -1,6 +1,7 @@
 import { pool } from "../db/pool.js";
 import { bidderAlias } from "./alias.js";
 import { getLot, type LotView } from "./lots.js";
+import type { BidRow } from "./rows.js";
 
 export interface RoomView {
   lot: LotView;
@@ -16,22 +17,22 @@ export async function roomView(lotId: string, userId?: string): Promise<RoomView
   if (!lot || lot.status === "cancelled") return null;
 
   const rows = (
-    await pool.query("SELECT seq, bidder_id, amount_cents, placed_at FROM bids WHERE lot_id = $1 ORDER BY seq DESC LIMIT 100", [lotId])
+    await pool.query<Pick<BidRow, "seq" | "bidder_id" | "amount_cents" | "placed_at">>("SELECT seq, bidder_id, amount_cents, placed_at FROM bids WHERE lot_id = $1 ORDER BY seq DESC LIMIT 100", [lotId])
   ).rows;
 
   const bids = rows.map((r) => ({
-    seq: r.seq as number,
+    seq: r.seq,
     bidder: bidderAlias(r.bidder_id, lotId),
     amountCents: Number(r.amount_cents),
-    placedAt: r.placed_at.toISOString() as string,
+    placedAt: r.placed_at.toISOString(),
     mine: r.bidder_id === userId,
   }));
 
   let me: RoomView["me"] = null;
   if (userId) {
     const mine = (
-      await pool.query("SELECT max(amount_cents) AS best FROM bids WHERE lot_id = $1 AND bidder_id = $2", [lotId, userId])
-    ).rows[0];
+      await pool.query<{ best: string | null }>("SELECT max(amount_cents) AS best FROM bids WHERE lot_id = $1 AND bidder_id = $2", [lotId, userId])
+    ).rows[0]!;
     const leading = rows[0]?.bidder_id === userId;
     const myBidCents = mine.best === null ? null : Number(mine.best);
     me = { leading, outbid: myBidCents !== null && !leading, myBidCents };

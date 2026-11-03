@@ -7,14 +7,13 @@ import { onLotChanged } from "../domain/events.js";
 import { roomView } from "../domain/room.js";
 import { cancelLot, createLot, getLot, listLots, listParticipating, totalReceived } from "../domain/lots.js";
 import { HttpError } from "../errors.js";
+import { fetchCatalogItem } from "../external/cleveland.js";
 import { bidsByUser } from "../rateLimit.js";
 
 const createSchema = z
   .object({
-    externalId: z.string().min(1),
-    title: z.string().trim().min(1).max(200),
-    imageUrl: z.url().nullable().default(null),
-    attributes: z.record(z.string(), z.unknown()).default({}),
+    // only the item id comes from the client; title, image and attributes are read from the catalog
+    externalId: z.string().regex(/^\d{1,12}$/, "Escolha uma obra do catálogo."),
     startingBidCents: z.number().int().positive("O lance inicial deve ser maior que zero."),
     minIncrementCents: z.number().int().positive("O incremento mínimo deve ser maior que zero."),
     startsAt: z.coerce.date(),
@@ -96,7 +95,9 @@ lotsRouter.get("/:id", async (req, res) => {
 });
 
 lotsRouter.post("/", requireAuth, requireRole("auctioneer"), async (req, res) => {
-  res.status(201).json(await createLot(req.user!.id, createSchema.parse(req.body)));
+  const { externalId, ...terms } = createSchema.parse(req.body);
+  const item = await fetchCatalogItem(externalId);
+  res.status(201).json(await createLot(req.user!.id, { ...item, ...terms }));
 });
 
 lotsRouter.post("/:id/cancel", requireAuth, requireRole("auctioneer"), async (req, res) => {

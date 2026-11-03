@@ -1,5 +1,6 @@
 import { pool } from "../db/pool.js";
 import { HttpError } from "../errors.js";
+import type { UserFundsRow, WalletEntryRow } from "./rows.js";
 
 export const MAX_DEPOSIT_CENTS = 1_000_000_00;
 
@@ -11,16 +12,17 @@ export interface WalletView {
 }
 
 export async function getWallet(userId: string): Promise<WalletView> {
-  const user = await pool.query("SELECT balance_cents, committed_cents FROM users WHERE id = $1", [userId]);
-  if (!user.rows[0]) throw new HttpError(404, "user_not_found", "Usuário não encontrado.");
-  const entries = await pool.query(
+  const user = await pool.query<Pick<UserFundsRow, "balance_cents" | "committed_cents">>("SELECT balance_cents, committed_cents FROM users WHERE id = $1", [userId]);
+  const funds = user.rows[0];
+  if (!funds) throw new HttpError(404, "user_not_found", "Usuário não encontrado.");
+  const entries = await pool.query<WalletEntryRow>(
     `SELECT e.id, e.kind, e.amount_cents, e.lot_id, l.title AS lot_title, e.created_at
      FROM wallet_entries e LEFT JOIN lots l ON l.id = e.lot_id
      WHERE e.user_id = $1 ORDER BY e.id DESC LIMIT 50`,
     [userId],
   );
-  const total = Number(user.rows[0].balance_cents);
-  const committed = Number(user.rows[0].committed_cents);
+  const total = Number(funds.balance_cents);
+  const committed = Number(funds.committed_cents);
   return {
     totalCents: total,
     committedCents: committed,

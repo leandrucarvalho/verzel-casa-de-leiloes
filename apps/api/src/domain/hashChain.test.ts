@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GENESIS_HASH, hashBid, verifyChain, type ChainBid } from "./hashChain.js";
+import { GENESIS_HASH, hashBid, signAnchor, verifyChain, type ChainBid } from "./hashChain.js";
 
 const secret = "test-secret";
 
@@ -52,11 +52,39 @@ describe("verifyChain", () => {
     const chain = bids();
     const finalHash = chain.at(-1)!.hash;
     chain.pop();
-    expect(verifyChain(chain, secret, finalHash)).toEqual({ valid: false, brokenAtSeq: 3 });
+    expect(verifyChain(chain, secret, { expectedFinalHash: finalHash })).toEqual({ valid: false, brokenAtSeq: 3 });
   });
 
   it("detects a recalculated chain when the secret is not known", () => {
     const forged = build([{ lotId: "lot-1", bidderId: "x", amountCents: 1, placedAt: "2026-10-25T10:00:00.000Z" }]);
     expect(verifyChain(forged, "wrong-secret").valid).toBe(false);
+  });
+
+  describe("signed anchor", () => {
+    const anchorOf = (chain: ChainBid[]) => signAnchor("lot-1", chain.length, chain.at(-1)!.hash, secret);
+
+    it("accepts a chain that matches its anchor", () => {
+      const chain = bids();
+      expect(verifyChain(chain, secret, { anchor: anchorOf(chain) })).toEqual({ valid: true });
+    });
+
+    it("detects a removed last bid without any receipt", () => {
+      const chain = bids();
+      const anchor = anchorOf(chain);
+      chain.pop();
+      expect(verifyChain(chain, secret, { anchor })).toEqual({ valid: false, brokenAtSeq: 3 });
+    });
+
+    it("detects a forged anchor", () => {
+      const chain = bids();
+      const anchor = { ...anchorOf(chain), sig: "0".repeat(64) };
+      expect(verifyChain(chain, secret, { anchor }).valid).toBe(false);
+    });
+
+    it("detects a bid added after the anchor", () => {
+      const chain = bids();
+      const anchor = anchorOf(chain.slice(0, 2));
+      expect(verifyChain(chain, secret, { anchor })).toEqual({ valid: false, brokenAtSeq: 2 });
+    });
   });
 });
