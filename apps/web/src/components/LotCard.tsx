@@ -49,8 +49,14 @@ export function LotCard({ lot }: { lot: Lot }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-1 p-4">
-        <h3 className="line-clamp-2 text-lg leading-snug font-semibold">{lot.title}</h3>
-        {artist && <p className="line-clamp-1 text-sm text-muted">{artist}</p>}
+        <h2 className="line-clamp-2 text-lg leading-snug font-semibold" title={lot.title}>
+          {lot.title}
+        </h2>
+        {artist && (
+          <p className="line-clamp-1 text-sm text-muted" title={artist}>
+            {artist}
+          </p>
+        )}
 
         <div className="mt-auto flex items-end justify-between gap-3 pt-3">
           <div>
