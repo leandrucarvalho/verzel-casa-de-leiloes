@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/api";
 import { useAuth, type Role } from "@/lib/auth";
-
-const input = "w-full rounded-lg border border-line bg-surface px-3 py-2 outline-none focus:border-brass";
+import { Icon } from "./Icon";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const { login, register } = useAuth();
@@ -36,80 +35,84 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="text-3xl font-semibold">{isRegister ? "Criar conta" : "Entrar"}</h1>
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
-        {isRegister && (
-          <>
-            <label className="block text-sm">
-              Apelido
-              <input name="nickname" required minLength={2} maxLength={30} className={input} />
-            </label>
-            <fieldset>
-              <legend className="text-sm">Quero</legend>
-              <div className="mt-1 flex gap-4 text-sm">
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="role" value="bidder" defaultChecked /> Dar lances
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="role" value="auctioneer" /> Leiloar itens
-                </label>
-              </div>
-            </fieldset>
-          </>
-        )}
-        <label className="block text-sm">
-          E-mail
-          <input name="email" type="email" required autoComplete="email" className={input} />
-        </label>
-        <label className="block text-sm">
-          Senha
-          <div className="relative">
-            <input
-              name="password"
-              type={showPassword ? "text" : "password"}
-              required
-              minLength={isRegister ? 8 : undefined}
-              autoComplete={isRegister ? "new-password" : "current-password"}
-              className={`${input} pr-10`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? "Ocultar senha" : "Exibir senha"}
-              aria-pressed={showPassword}
-              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted hover:text-ink"
-            >
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                <circle cx="12" cy="12" r="3" />
-                {showPassword && <path d="M3 3l18 18" />}
-              </svg>
-            </button>
-          </div>
-          {isRegister && <span className="text-xs text-muted">Mínimo de 8 caracteres.</span>}
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-danger">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded-full bg-brass px-4 py-2 font-medium text-brass-ink disabled:opacity-60"
-        >
-          {busy ? "Aguarde…" : isRegister ? "Criar conta" : "Entrar"}
-        </button>
-      </form>
-      <p className="mt-4 text-sm text-muted">
+    <div className="mx-auto max-w-md">
+      <div className="card p-6 sm:p-8">
+        <h1 className="text-3xl font-bold">{isRegister ? "Criar conta" : "Entrar"}</h1>
+        <p className="mt-1 text-sm text-muted">
+          {isRegister ? "Escolha como quer participar dos leilões." : "Acesse sua carteira, seus lances e seus lotes."}
+        </p>
+        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          {isRegister && (
+            <>
+              <label className="block text-sm font-medium">
+                Apelido
+                <input name="nickname" required minLength={2} maxLength={30} className="field mt-1" />
+              </label>
+              <fieldset>
+                <legend className="text-sm font-medium">Quero</legend>
+                <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                  <label className="card flex min-h-11 cursor-pointer items-center gap-2 px-3 text-sm has-[:checked]:border-brand has-[:checked]:bg-brand/10">
+                    <input type="radio" name="role" value="bidder" defaultChecked className="accent-[var(--brand)]" /> Dar lances
+                  </label>
+                  <label className="card flex min-h-11 cursor-pointer items-center gap-2 px-3 text-sm has-[:checked]:border-brand has-[:checked]:bg-brand/10">
+                    <input type="radio" name="role" value="auctioneer" className="accent-[var(--brand)]" /> Leiloar itens
+                  </label>
+                </div>
+              </fieldset>
+            </>
+          )}
+          <label className="block text-sm font-medium">
+            E-mail
+            <input name="email" type="email" required autoComplete="email" className="field mt-1" />
+          </label>
+          <label className="block text-sm font-medium">
+            Senha
+            <div className="relative mt-1">
+              <input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                required
+                minLength={isRegister ? 8 : undefined}
+                autoComplete={isRegister ? "new-password" : "current-password"}
+                className="field !pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Ocultar senha" : "Exibir senha"}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted hover:text-ink"
+              >
+                <Icon name={showPassword ? "eyeOff" : "eye"} size={20} />
+              </button>
+            </div>
+            {isRegister && <span className="text-xs font-normal text-muted">Mínimo de 8 caracteres.</span>}
+          </label>
+          {error && (
+            <p role="alert" className="flex items-start gap-2 text-sm font-medium text-danger">
+              <Icon name="alert" size={18} className="mt-0.5 shrink-0" />
+              {error}
+            </p>
+          )}
+          <button type="submit" disabled={busy} className="btn btn-brand w-full">
+            {busy ? "Aguarde…" : isRegister ? "Criar conta" : "Entrar"}
+          </button>
+        </form>
+      </div>
+      <p className="mt-4 text-center text-sm text-muted">
         {isRegister ? (
           <>
-            Já tem conta? <Link href="/login" className="underline underline-offset-4">Entrar</Link>
+            Já tem conta?{" "}
+            <Link href="/login" className="link font-semibold text-ink">
+              Entrar
+            </Link>
           </>
         ) : (
           <>
-            Novo por aqui? <Link href="/cadastro" className="underline underline-offset-4">Criar conta</Link>
+            Novo por aqui?{" "}
+            <Link href="/cadastro" className="link font-semibold text-ink">
+              Criar conta
+            </Link>
           </>
         )}
       </p>

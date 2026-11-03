@@ -7,6 +7,7 @@ import type { User } from "@/lib/auth";
 import { formatBRL, parseBRLToCents } from "@/lib/format";
 import { quickBids } from "@/lib/quickBids";
 import type { Room } from "@/lib/types";
+import { Icon } from "./Icon";
 
 type Feedback = { kind: "ok" | "error"; text: string } | null;
 
@@ -22,20 +23,22 @@ export function BidPanel({ room, user, onPlaced }: { room: Room; user: User | nu
 
   if (!user) {
     return (
-      <p className="rounded-xl border border-line bg-surface p-4 text-sm">
-        <Link href="/login" className="font-medium underline underline-offset-4">
-          Entre
-        </Link>{" "}
-        ou{" "}
-        <Link href="/cadastro" className="font-medium underline underline-offset-4">
-          crie uma conta
-        </Link>{" "}
-        para dar lances.
-      </p>
+      <div className="card p-5">
+        <p className="font-semibold">Quer dar um lance?</p>
+        <p className="mt-1 text-sm text-muted">Crie uma conta de licitante, deposite um saldo simulado e participe ao vivo.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/cadastro" className="btn btn-brand">
+            Criar conta
+          </Link>
+          <Link href="/login" className="btn btn-ghost">
+            Entrar
+          </Link>
+        </div>
+      </div>
     );
   }
   if (user.role === "auctioneer") {
-    return <p className="rounded-xl border border-line bg-surface p-4 text-sm text-muted">Leiloeiros não podem dar lances.</p>;
+    return <p className="card p-5 text-sm text-muted">Leiloeiros não podem dar lances.</p>;
   }
 
   async function submit(e: FormEvent) {
@@ -68,12 +71,18 @@ export function BidPanel({ room, user, onPlaced }: { room: Room; user: User | nu
   const notStarted = lot.status === "scheduled";
 
   return (
-    <form onSubmit={submit} className="rounded-xl border border-line bg-surface p-4" noValidate>
-      <label htmlFor="bid" className="text-sm font-medium">
-        Seu lance
-      </label>
-      <div className="mt-2 flex gap-2">
-        <div className="flex flex-1 items-center rounded-lg border border-line bg-paper px-3 focus-within:border-brass">
+    <form onSubmit={submit} className="card p-5" noValidate>
+      <div className="flex items-baseline justify-between gap-3">
+        <label htmlFor="bid" className="font-semibold">
+          Seu lance
+        </label>
+        <span className="text-sm text-muted">
+          Mínimo <span className="num font-semibold text-ink">{formatBRL(minimumNextBidCents)}</span>
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <div className="field flex flex-1 items-center gap-1 !py-0 focus-within:border-brand focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand)_30%,transparent)]">
           <span className="text-muted">R$</span>
           <input
             id="bid"
@@ -82,34 +91,33 @@ export function BidPanel({ room, user, onPlaced }: { room: Room; user: User | nu
             onChange={(e) => setAmount(e.target.value)}
             placeholder={plain(minimumNextBidCents)}
             disabled={notStarted || busy}
-            className="w-full bg-transparent px-2 py-2 outline-none"
+            aria-describedby={feedback ? "bid-feedback" : undefined}
+            className="num w-full bg-transparent py-2 text-lg font-semibold outline-none placeholder:font-normal placeholder:text-muted"
           />
         </div>
-        <button
-          type="submit"
-          disabled={notStarted || busy}
-          className="rounded-full bg-brass px-5 py-2 font-medium text-brass-ink disabled:opacity-60"
-        >
+        <button type="submit" disabled={notStarted || busy} className="btn btn-bid px-7 text-base">
+          <Icon name="gavel" size={18} />
           {busy ? "Enviando…" : "Dar lance"}
         </button>
       </div>
+
       <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Lances rápidos">
-        <span className="text-sm text-muted">Lances rápidos:</span>
+        <span className="text-sm text-muted">Lances rápidos</span>
         {quickBids(minimumNextBidCents, lot.minIncrementCents).map((cents, i) => (
-          <button
-            key={cents}
-            type="button"
-            disabled={notStarted || busy}
-            onClick={() => setAmount(plain(cents))}
-            className="rounded-full border border-line px-3 py-1 text-sm hover:border-brass disabled:opacity-60"
-          >
+          <button key={cents} type="button" disabled={notStarted || busy} onClick={() => setAmount(plain(cents))} className="chip num">
             {i === 0 ? `Mínimo ${formatBRL(cents)}` : formatBRL(cents)}
           </button>
         ))}
       </div>
-      {notStarted && <p className="mt-2 text-sm text-muted">Este lote ainda não começou. Os lances abrem no horário de início.</p>}
+
+      {notStarted && <p className="mt-3 text-sm text-scheduled">Este lote ainda não começou. Os lances abrem no horário de início.</p>}
       {feedback && (
-        <p role={feedback.kind === "error" ? "alert" : "status"} className={`mt-3 text-sm ${feedback.kind === "error" ? "text-danger" : "text-live"}`}>
+        <p
+          id="bid-feedback"
+          role={feedback.kind === "error" ? "alert" : "status"}
+          className={`mt-3 flex items-start gap-2 text-sm font-medium ${feedback.kind === "error" ? "text-danger" : "text-live"}`}
+        >
+          <Icon name={feedback.kind === "error" ? "alert" : "check"} size={18} className="mt-0.5 shrink-0" />
           {feedback.text}
         </p>
       )}

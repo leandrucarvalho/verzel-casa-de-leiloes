@@ -1,7 +1,8 @@
 import type { AddressInfo } from "node:net";
 import request from "supertest";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
+import { addItem, stubCatalog } from "../test/catalog.js";
 import { resetDb } from "../test/db.js";
 
 const app = createApp();
@@ -18,8 +19,7 @@ async function signUp(role: "bidder" | "auctioneer", email: string, depositCents
 
 async function newLot(auth: string) {
   const res = await request(app).post("/lots").set("Authorization", auth).send({
-    externalId: "1",
-    title: "Lote",
+    externalId: addItem("Lote"),
     startingBidCents: 10_000,
     minIncrementCents: 500,
     startsAt: minutes(-10),
@@ -31,7 +31,11 @@ async function newLot(auth: string) {
 const bid = (lotId: string, auth: string, amountCents: number) =>
   request(app).post(`/lots/${lotId}/bids`).set("Authorization", auth).send({ amountCents });
 
-beforeEach(resetDb);
+beforeEach(async () => {
+  await resetDb();
+  stubCatalog();
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("GET /lots/:id/room", () => {
   it("is public and tells the minimum next bid", async () => {

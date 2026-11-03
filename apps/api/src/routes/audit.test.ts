@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import request from "supertest";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { pool } from "../db/pool.js";
+import { addItem, stubCatalog } from "../test/catalog.js";
 import { resetDb } from "../test/db.js";
 
 const app = createApp();
@@ -27,8 +28,7 @@ async function lotWithFourBids() {
   const ana = await signUp("bidder", "ana@example.com", 100_000);
   const bruno = await signUp("bidder", "bruno@example.com", 100_000);
   const res = await request(app).post("/lots").set("Authorization", seller.auth).send({
-    externalId: "1",
-    title: "Lote",
+    externalId: addItem("Lote"),
     startingBidCents: 10_000,
     minIncrementCents: 500,
     startsAt: minutes(-10),
@@ -45,7 +45,11 @@ async function lotWithFourBids() {
 const endNow = (lot: string) =>
   pool.query("UPDATE lots SET starts_at = now() - interval '2 hours', ends_at = now() - interval '1 second' WHERE id = $1", [lot]);
 
-beforeEach(resetDb);
+beforeEach(async () => {
+  await resetDb();
+  stubCatalog();
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("GET /lots/:id/audit", () => {
   it("is public and reports an untouched history as intact", async () => {
@@ -73,8 +77,7 @@ describe("GET /lots/:id/audit", () => {
   it("works for a lot with no bids", async () => {
     const seller = await signUp("auctioneer", "s@example.com");
     const res = await request(app).post("/lots").set("Authorization", seller.auth).send({
-      externalId: "1",
-      title: "Vazio",
+      externalId: addItem("Vazio"),
       startingBidCents: 100,
       minIncrementCents: 10,
       startsAt: minutes(-1),
@@ -123,6 +126,32 @@ describe("tampering straight in the database", () => {
       [lot, first.bidder_id, first.hash, forgedHash],
     );
     expect((await audit(lot)).body.verdict).toEqual({ valid: false, brokenAtSeq: 2 });
+  });
+
+  it("detects a removed last bid while the lot is still open, thanks to the signed anchor", async () => {
+    const { lot } = await lotWithFourBids();
+    expect((await audit(lot)).body).toMatchObject({ verdict: { valid: true }, anchored: true, anchoredToReceipt: false });
+    await pool.query("DELETE FROM bids WHERE lot_id = $1 AND seq = 4", [lot]);
+    expect((await audit(lot)).body.verdict).toEqual({ valid: false, brokenAtSeq: 4 });
+  });
+
+  it("detects the whole tail being cut off", async () => {
+    const { lot } = await lotWithFourBids();
+    await pool.query("DELETE FROM bids WHERE lot_id = $1 AND seq > 1", [lot]);
+    expect((await audit(lot)).body.verdict).toEqual({ valid: false, brokenAtSeq: 2 });
+  });
+
+  it("detects a tampered anchor, which cannot be re-signed without the secret", async () => {
+    const { lot } = await lotWithFourBids();
+    await pool.query("DELETE FROM bids WHERE lot_id = $1 AND seq = 4", [lot]);
+    await pool.query("UPDATE lots SET anchor_seq = 3, anchor_hash = (SELECT hash FROM bids WHERE lot_id = $1 AND seq = 3) WHERE id = $1", [lot]);
+    expect((await audit(lot)).body.verdict.valid).toBe(false);
+  });
+
+  it("still audits lots that predate the anchor, using the chain alone", async () => {
+    const { lot } = await lotWithFourBids();
+    await pool.query("UPDATE lots SET anchor_seq = NULL, anchor_hash = NULL, anchor_sig = NULL WHERE id = $1", [lot]);
+    expect((await audit(lot)).body).toMatchObject({ verdict: { valid: true }, anchored: false });
   });
 
   it("detects a removed last bid once the lot is settled, thanks to the receipt hash", async () => {

@@ -1,9 +1,10 @@
 import request from "supertest";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { config } from "../config.js";
 import { pool } from "../db/pool.js";
 import { verifyChain, type ChainBid } from "../domain/hashChain.js";
+import { addItem, stubCatalog } from "../test/catalog.js";
 import { resetDb } from "../test/db.js";
 
 const app = createApp();
@@ -23,8 +24,7 @@ async function createLot(auth: string, over: Record<string, unknown> = {}) {
     .post("/lots")
     .set("Authorization", auth)
     .send({
-      externalId: "1",
-      title: "Lote",
+      externalId: addItem("Lote"),
       startingBidCents: 10_000,
       minIncrementCents: 500,
       startsAt: minutes(-10),
@@ -52,7 +52,11 @@ async function storedChain(lotId: string): Promise<ChainBid[]> {
   }));
 }
 
-beforeEach(resetDb);
+beforeEach(async () => {
+  await resetDb();
+  stubCatalog();
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("bid rules", () => {
   it("accepts the first bid at the starting price and commits the balance", async () => {
