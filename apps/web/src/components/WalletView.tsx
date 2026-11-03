@@ -107,6 +107,7 @@ export function WalletView() {
               onChange={(e) => setAmount(e.target.value)}
               placeholder="500,00"
               disabled={busy}
+              aria-describedby={feedback ? "deposit-feedback" : undefined}
               className="num w-full bg-transparent py-2 outline-none placeholder:text-muted"
             />
           </div>
@@ -115,7 +116,7 @@ export function WalletView() {
           </button>
         </div>
         {feedback && (
-          <p role={feedback.ok ? "status" : "alert"} className={`mt-3 flex items-center gap-2 text-sm font-medium ${feedback.ok ? "text-live" : "text-danger"}`}>
+          <p id="deposit-feedback" role={feedback.ok ? "status" : "alert"} className={`mt-3 flex items-center gap-2 text-sm font-medium ${feedback.ok ? "text-live" : "text-danger"}`}>
             <Icon name={feedback.ok ? "check" : "alert"} size={16} />
             {feedback.text}
           </p>

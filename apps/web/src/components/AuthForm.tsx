@@ -46,7 +46,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             <>
               <label className="block text-sm font-medium">
                 Apelido
-                <input name="nickname" required minLength={2} maxLength={30} className="field mt-1" />
+                <input name="nickname" required minLength={2} maxLength={30} autoComplete="nickname" className="field mt-1" />
               </label>
               <fieldset>
                 <legend className="text-sm font-medium">Quero</legend>
@@ -63,7 +63,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           )}
           <label className="block text-sm font-medium">
             E-mail
-            <input name="email" type="email" required autoComplete="email" className="field mt-1" />
+            <input name="email" type="email" required autoComplete="email" aria-describedby={error ? "auth-error" : undefined} className="field mt-1" />
           </label>
           <label className="block text-sm font-medium">
             Senha
@@ -74,6 +74,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 required
                 minLength={isRegister ? 8 : undefined}
                 autoComplete={isRegister ? "new-password" : "current-password"}
+                aria-describedby={error ? "auth-error" : undefined}
                 className="field !pr-12"
               />
               <button
@@ -89,7 +90,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             {isRegister && <span className="text-xs font-normal text-muted">Mínimo de 8 caracteres.</span>}
           </label>
           {error && (
-            <p role="alert" className="flex items-start gap-2 text-sm font-medium text-danger">
+            <p id="auth-error" role="alert" className="flex items-start gap-2 text-sm font-medium text-danger">
               <Icon name="alert" size={18} className="mt-0.5 shrink-0" />
               {error}
             </p>
