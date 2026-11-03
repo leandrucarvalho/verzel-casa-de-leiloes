@@ -98,7 +98,11 @@ export function LotRoom({ lotId }: { lotId: string }) {
             <p className="mt-1 text-sm text-muted">Leiloeiro: {lot.auctioneer}</p>
           </header>
 
-          <section className="card p-5" aria-live="polite">
+          {/* One atomic announcement when the price changes; the ticking countdown is deliberately not live. */}
+          <p role="status" aria-atomic="true" className="sr-only">
+            {lot.currentBidCents ? `Lance atual ${formatBRL(lot.currentBidCents)}` : "Nenhum lance ainda"}, {lot.bidCount === 1 ? "1 lance" : `${lot.bidCount} lances`}.
+          </p>
+          <section className="card p-5">
             <p className="eyebrow">{sold ? "Arrematado por" : lot.currentBidCents ? "Lance atual" : "Lance inicial"}</p>
             <p className="num font-display text-5xl font-bold">
               {formatBRL((lot.status === "ended" ? lot.winningBidCents : lot.currentBidCents) ?? lot.startingBidCents)}

@@ -20,12 +20,12 @@
   --brand-ink: #ffffff;
   --bid: #15803d;
   --bid-ink: #ffffff;
-  --live: #15803d;
-  --urgent: #b45309;
-  --scheduled: #1d63c9;
-  --sold: #6d3fd1;
-  --ended: #566176;
-  --danger: #c0262d;
+  --live: #116a2e;
+  --urgent: #8f4308;
+  --scheduled: #1856ad;
+  --sold: #5f31c4;
+  --ended: #4d586d;
+  --danger: #ad1f26;
   --danger-ink: #ffffff;
   --shadow: 0 1px 2px rgb(14 20 34 / 0.06), 0 8px 24px rgb(14 20 34 / 0.06);
 }
@@ -76,6 +76,11 @@
   --shadow-card: var(--shadow);
 }
 
+/* the sticky header must never cover the control that has keyboard focus */
+html {
+  scroll-padding-top: 5rem;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
@@ -89,6 +94,18 @@ h3,
 .font-display {
   font-family: var(--font-display-loaded), system-ui, sans-serif;
   letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+/* no 300ms tap delay, and every clickable thing says so */
+button,
+a,
+[role="tab"] {
+  touch-action: manipulation;
+}
+button:not(:disabled),
+[role="tab"] {
+  cursor: pointer;
 }
 
 /* money and clocks never jiggle when digits change */
@@ -220,6 +237,14 @@ h3,
   .chip[aria-pressed="true"] {
     border-color: var(--brand);
     background: color-mix(in srgb, var(--brand) 16%, transparent);
+  }
+
+  /* touch screens get the full 44px target on the compact controls too */
+  @media (pointer: coarse) {
+    .chip,
+    .btn-sm {
+      min-height: 2.75rem;
+    }
   }
 
   .link {
