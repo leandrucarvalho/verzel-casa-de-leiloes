@@ -1,8 +1,9 @@
 import request from "supertest";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { pool } from "../db/pool.js";
 import { settleDueLots, settleLot } from "../domain/settlement.js";
+import { addItem, stubCatalog } from "../test/catalog.js";
 import { resetDb } from "../test/db.js";
 
 const app = createApp();
@@ -19,8 +20,7 @@ async function signUp(role: "bidder" | "auctioneer", email: string, depositCents
 
 async function createLot(auth: string) {
   const res = await request(app).post("/lots").set("Authorization", auth).send({
-    externalId: "1",
-    title: "Lote",
+    externalId: addItem("Lote"),
     startingBidCents: 10_000,
     minIncrementCents: 500,
     startsAt: minutes(-10),
@@ -47,7 +47,11 @@ async function auctionWithBids() {
   return { seller, ana, bruno, lot };
 }
 
-beforeEach(resetDb);
+beforeEach(async () => {
+  await resetDb();
+  stubCatalog();
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("settlement", () => {
   it("debits the winner, credits the auctioneer and releases everything else", async () => {

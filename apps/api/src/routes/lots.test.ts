@@ -1,7 +1,8 @@
 import request from "supertest";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { pool } from "../db/pool.js";
+import { addItem, stubCatalog } from "../test/catalog.js";
 import { resetDb } from "../test/db.js";
 
 const app = createApp();
@@ -13,10 +14,7 @@ async function signUp(role: "bidder" | "auctioneer", email: string) {
 }
 
 const lotBody = (over: Record<string, unknown> = {}) => ({
-  externalId: "27992",
-  title: "A Sunday on La Grande Jatte",
-  imageUrl: "https://example.com/a.jpg",
-  attributes: { artist: "Seurat" },
+  externalId: addItem("A Sunday on La Grande Jatte", "Seurat"),
   startingBidCents: 10_000,
   minIncrementCents: 500,
   startsAt: hours(-1),
@@ -24,11 +22,18 @@ const lotBody = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+// `title` and `attributes.artist` are not request fields: they register the catalog item the lot will snapshot.
 async function create(auth: string, over: Record<string, unknown> = {}) {
-  return request(app).post("/lots").set("Authorization", auth).send(lotBody(over));
+  const { title, attributes, ...terms } = over as { title?: string; attributes?: { artist?: string } };
+  const item = title ? { externalId: addItem(title, attributes?.artist) } : {};
+  return request(app).post("/lots").set("Authorization", auth).send(lotBody({ ...item, ...terms }));
 }
 
-beforeEach(resetDb);
+beforeEach(async () => {
+  await resetDb();
+  stubCatalog();
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("POST /lots", () => {
   it("creates a lot with an item snapshot", async () => {
@@ -36,6 +41,39 @@ describe("POST /lots", () => {
     const res = await create(auth);
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ title: "A Sunday on La Grande Jatte", status: "live", currentBidCents: null, bidCount: 0 });
+  });
+
+  it("takes the item from the catalog by id and ignores what the client says about it", async () => {
+    const { auth } = await signUp("auctioneer", "l@example.com");
+    const res = await request(app)
+      .post("/lots")
+      .set("Authorization", auth)
+      .send(lotBody({ title: "Forjado", imageUrl: "https://evil.example/x.jpg", attributes: { artist: "Eu" } }));
+    expect(res.status).toBe(201);
+    expect(res.body.title).toBe("A Sunday on La Grande Jatte");
+    expect(res.body.imageUrl).toMatch(/^https:\/\/openaccess-cdn\.clevelandart\.org\//);
+    expect(res.body.attributes).toEqual({ artist: "Seurat" });
+  });
+
+  it("rejects an item the catalog does not know", async () => {
+    const { auth } = await signUp("auctioneer", "l@example.com");
+    const res = await create(auth, { externalId: "999999" });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("item_not_found");
+  });
+
+  it("rejects an item id that is not an id", async () => {
+    const { auth } = await signUp("auctioneer", "l@example.com");
+    expect((await create(auth, { externalId: "../admin" })).status).toBe(400);
+  });
+
+  it("answers 503 when the catalog is down", async () => {
+    const { auth } = await signUp("auctioneer", "l@example.com");
+    const body = lotBody();
+    vi.stubGlobal("fetch", () => Promise.reject(new Error("offline")));
+    const res = await request(app).post("/lots").set("Authorization", auth).send(body);
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("catalog_unavailable");
   });
 
   it("is restricted to auctioneers", async () => {

@@ -18,9 +18,29 @@ Teste técnico Elite Dev (Verzel): leilões online com lances ao vivo, carteira 
 
 ![Sala do lote The Red Kerchief](assets/screenshots/sala-do-lote.png)
 
+**Carteira:** o saldo **disponível** (o número que decide se o lance passa) ocupa o destaque; total e comprometido ficam ao lado, como a conta que leva até ele.
+
+![Carteira com o disponível em destaque](assets/screenshots/carteira.png)
+
+**Painel do leiloeiro:** cada lote tem o estado marcado por cor, ícone e rótulo (ao vivo, agendado, arrematado, cancelado). Cancelar é uma ação destrutiva e pede confirmação num diálogo que explica o estorno.
+
+![Painel do leiloeiro](assets/screenshots/painel.png)
+
 **Auditoria pública:** cadeia de lances com o hash de cada um e o veredito de integridade, sem precisar de login.
 
 ![Auditoria da cadeia de lances](assets/screenshots/auditoria.png)
+
+### Direção visual
+
+A interface é um tema escuro de "sala de leilão" (com tema claro pelo botão do cabeçalho), pensado para a tarefa: olhar a obra, ler o preço e agir no tempo certo.
+
+- **Estados reconhecíveis de relance.** Cada estado de lote tem uma cor própria **e** um ícone **e** uma palavra: ao vivo (verde), termina em breve (âmbar), últimos minutos (vermelho), agendado (azul), arrematado (roxo), encerrado (cinza) e cancelado (vermelho, título riscado). Nunca só a cor.
+- **Hierarquia de dinheiro.** Preço e contagem regressiva usam fonte de exibição com números tabulares (não pulam quando mudam). Na carteira, o disponível é o maior elemento da página.
+- **Ações destrutivas tratadas como tal.** Cancelar lote é um botão vermelho de contorno, com diálogo de confirmação, foco inicial no botão seguro e texto que diz o efeito financeiro.
+- **Acessibilidade.** Contraste mínimo de 4,5:1 nos dois temas, alvos de toque de 44 px, foco visível, link "pular para o conteúdo", `prefers-reduced-motion` respeitado e avisos de lance em `role="status"`/`alert`.
+- **Tokens, não valores soltos.** Cores, superfícies e estados são variáveis CSS em `apps/web/src/app/globals.css`; componentes (`.btn`, `.card`, `.field`, `.chip`) e o `StatusBadge` mantêm o resto consistente.
+
+O ponto de partida foi o gerador de design system da skill [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) para "leilão de arte online" (luxo escuro, verde de lance, vermelho de "superado", urgência). Eu **não** segui a sugestão de fonte serifada, porque a primeira versão do front tinha justamente fundo creme, serifa e dourado, e foi apontada como genérica.
 
 ## Contas de demonstração
 
@@ -41,7 +61,7 @@ O seed cria 5 lotes: 3 ao vivo (um deles com lances em aberto), 1 agendado e 1 e
 | Front | Next.js 16 (App Router), React 19, Tailwind v4, TypeScript |
 | API | Node 22, Express 5, TypeScript, `pg`, `zod`, `jsonwebtoken` |
 | Banco | PostgreSQL (Neon em produção, Docker local) com migrações SQL próprias |
-| Testes | Vitest + Supertest (API), Vitest (web) |
+| Testes | Vitest + Supertest contra Postgres real (API), Vitest (web), Playwright manual (ponta a ponta) |
 | CI | GitHub Actions: lint, typecheck, testes e build |
 | Deploy | Vercel (web), Render com Docker (API), Neon (banco) |
 
@@ -93,6 +113,7 @@ API:
 | `HASH_SECRET` | chave do HMAC da cadeia de lances (veja abaixo) |
 | `PORT` | porta da API (padrão 3333) |
 | `SEED_ON_START` | com `1`, o container carrega os dados demo ao iniciar (idempotente) |
+| `EMBEDDED_WORKER` | com `0`, a API não encerra lotes por conta própria; use o worker separado (veja "Liquidação") |
 
 Em produção `JWT_SECRET` e `HASH_SECRET` são obrigatórios; em desenvolvimento há valores padrão.
 
@@ -101,7 +122,7 @@ Front: `NEXT_PUBLIC_API_URL`, a URL da API.
 ### Testes e qualidade
 
 ```bash
-npm test          # API (109 testes) e web (21 testes)
+npm test          # API (121 testes) e web (21 testes)
 npm run lint
 npm run typecheck
 npm run build
@@ -121,7 +142,7 @@ npm run e2e
 
 O Playwright sobe a API e o front sozinho (ou reaproveita os que já estiverem rodando) e usa o Chrome já instalado na máquina, então não baixa navegador. Se a porta 3000 estiver ocupada, use `E2E_WEB_PORT=3010 npm run e2e`. Cada execução cria um lote próprio e o cancela no fim, então não mexe nos lotes nem nos saldos do seed.
 
-**Por que fica fora da CI:** de propósito. Ele precisa de banco semeado, API e front no ar e um navegador, o que deixaria a CI mais lenta e frágil (um atraso de rede faria o merge falhar sem haver defeito). A CI continua rodando lint, tipos, os 109 testes da API (que já cobrem as regras de lance, saldo, liquidação, auditoria e limites) e o build. O teste ponta a ponta serve para confirmar, antes de uma entrega, que as telas e a API conversam como esperado. Se o projeto crescesse, o próximo passo natural seria rodá-lo na CI contra um banco efêmero.
+**Por que fica fora da CI:** de propósito. Ele precisa de banco semeado, API e front no ar e um navegador, o que deixaria a CI mais lenta e frágil (um atraso de rede faria o merge falhar sem haver defeito). A CI continua rodando lint, tipos, os 121 testes da API (que já cobrem as regras de lance, saldo, liquidação, auditoria e limites) e o build. O teste ponta a ponta serve para confirmar, antes de uma entrega, que as telas e a API conversam como esperado. Se o projeto crescesse, o próximo passo natural seria rodá-lo na CI contra um banco efêmero.
 
 ## Roteiro para testar cada função
 
@@ -175,7 +196,9 @@ Cada lance roda em uma transação que trava o lote com `SELECT ... FOR UPDATE`;
 
 ### Liquidação
 
-Ao encerrar, o vencedor é debitado, o leiloeiro creditado e o comprovante é gerado. Lote sem lances fecha sem vencedor. A liquidação é idempotente e acontece de duas formas: um job a cada 15 segundos no servidor, e de forma preguiçosa, quando alguém lê lotes, carteira ou comprovantes. Assim o resultado fica certo mesmo que o servidor tenha estado dormindo.
+Ao encerrar, o vencedor é debitado, o leiloeiro creditado e o comprovante é gerado. Lote sem lances fecha sem vencedor. A liquidação é idempotente (a trava da linha do lote e a checagem do status fazem uma segunda chamada não ter efeito) e acontece de duas formas: um laço a cada 15 segundos e, de forma preguiçosa, quando alguém lê lotes, carteira ou comprovantes. Assim o resultado fica certo mesmo que o servidor tenha estado dormindo.
+
+**O laço de encerramento não precisa morar na API.** Ele é o `apps/api/src/worker.ts`, que pode rodar sozinho (`npm run worker -w apps/api` em desenvolvimento, `node dist/worker.js` em produção, e o serviço `worker` do Docker Compose faz isso). Como `settleLot` é idempotente, vários workers (e a leitura preguiçosa das APIs) podem rodar ao mesmo tempo sem liquidar duas vezes. Com `EMBEDDED_WORKER=0` a API deixa de rodar o laço. No plano gratuito da Render, que tem um serviço só, o padrão continua sendo o laço dentro da API.
 
 ### Histórico à prova de adulteração
 
@@ -187,12 +210,16 @@ A auditoria pública (`/auditoria/[id]`, sem login) recalcula a cadeia inteira e
 - **inserção** no meio: o `seq` ou o `hash_anterior` deixam de encaixar;
 - **remoção** no meio: a sequência quebra.
 
-Quando o lote é encerrado, o comprovante guarda o **hash final**. Com isso, remover o último lance também é detectado.
+Para pegar a **remoção do último lance**, que a cadeia sozinha não vê, há duas âncoras:
+
+- **Âncora assinada do lote** (migração `003_chain_anchor.sql`): a cada lance, na mesma transação, o lote grava a posição e o hash do lance mais novo junto com uma assinatura `HMAC(chave, "anchor|lote|seq|hash")`. Sem a chave, quem mexe no banco não consegue assinar uma âncora nova. Se o último lance sumir, a cadeia fica menor que a âncora e o veredito é "adulterado", **mesmo com o lote ainda aberto**.
+- **Hash final no comprovante**, gravado na liquidação, como segunda fixação.
 
 **Limites, sem rodeios:**
 
-- Antes do encerramento do lote, apagar o último lance não é detectável (ainda não há hash final fixado). A tela de auditoria avisa isso.
 - Quem tiver o banco **e** a chave do HMAC consegue recalcular tudo. A proteção vale contra quem altera o banco sem ter a chave.
+- Quem tem acesso ao banco pode **restaurar uma âncora antiga**, genuinamente assinada, junto com a cadeia mais curta correspondente. Fechar isso exigiria publicar as âncoras fora do banco (um log de transparência). Está marcado como `shortcut:` em `hashChain.ts`.
+- Lotes criados antes da âncora não têm uma; para eles vale só o hash do comprovante depois do encerramento. A tela de auditoria diz qual é o caso.
 
 ### Privacidade
 
@@ -219,13 +246,19 @@ Quem acerta a senha não é afetado: só as tentativas erradas contam. Durante u
 
 ### Catálogo e resiliência
 
-As obras vêm da API aberta do Cleveland Museum of Art, só na busca do leiloeiro (cache de 10 minutos, com cópia antiga como reserva). Ao criar o lote, o título, a imagem e os atributos são **copiados para o lote**. Por isso vitrine, sala, auditoria e comprovante continuam funcionando mesmo com a API externa fora do ar. Se a busca falhar sem cópia, o painel mostra um erro claro (`catalog_unavailable`, HTTP 503).
+As obras vêm da API aberta do Cleveland Museum of Art. A busca do leiloeiro tem cache de 10 minutos, com cópia antiga como reserva.
+
+**O servidor decide o que o lote mostra.** `POST /lots` recebe só o **identificador** da obra (`externalId`, numérico). A API busca o item no catálogo por esse id e grava título, imagem e atributos no lote; qualquer `title`, `imageUrl` ou `attributes` enviados pelo cliente são ignorados. Id inexistente dá 404 (`item_not_found`), obra sem imagem dá 422 (`item_without_image`) e catálogo fora do ar dá 503 (`catalog_unavailable`). Por isso ninguém consegue criar um lote com título ou imagem forjados chamando a API direto.
+
+O título, a imagem e os atributos são **copiados para o lote**. Por isso vitrine, sala, auditoria e comprovante continuam funcionando mesmo com a API externa fora do ar. Se a busca ou a leitura do item falharem sem cópia, o painel mostra um erro claro (`catalog_unavailable`, HTTP 503).
 
 Eu comecei pelo Art Institute of Chicago e troquei: as imagens do CDN dele são bloqueadas quando embutidas em outro site.
 
 ### Tempo real
 
 A sala do lote usa Server-Sent Events: o servidor só avisa "mudou" e cada cliente busca a sala de novo, então ninguém recebe dado privado de outro pelo canal. Há polling de 5 segundos como reserva (proxies que seguram o stream, conexão caída).
+
+**O canal é compartilhado.** Toda mudança de lote (lance, cancelamento, liquidação) faz `pg_notify('lot_changed', <id do lote>)`. Cada instância da API mantém uma conexão `LISTEN` e repassa o aviso para as suas conexões SSE. Assim um lance tratado pela instância A, ou um lote liquidado pelo worker, chega às salas abertas na instância B. A conexão `LISTEN` abre na primeira assinatura e reconecta sozinha se cair. O teste de SSE e o teste ponta a ponta (superado em tempo real) passam por esse caminho.
 
 ## API
 
@@ -243,7 +276,7 @@ Resumo das rotas (todas em JSON):
 | `GET /wallet`, `POST /wallet/deposit` | licitante | carteira e depósito simulado |
 | `GET /lots/participating`, `GET /receipts` | licitante | meus lotes e arremates |
 | `GET /catalog/search?q=` | leiloeiro | busca no catálogo |
-| `POST /lots`, `POST /lots/:id/cancel`, `GET /lots/mine` | leiloeiro | criar, cancelar (com estorno), resultados |
+| `POST /lots` (corpo: `externalId`, lance inicial, incremento, início e fim), `POST /lots/:id/cancel`, `GET /lots/mine` | leiloeiro | criar (título e imagem vêm do catálogo), cancelar (com estorno), resultados |
 
 Dinheiro é sempre inteiro em centavos, nunca ponto flutuante.
 
@@ -259,7 +292,8 @@ Dinheiro é sempre inteiro em centavos, nunca ponto flutuante.
 - **Primeira chamada lenta** na API (plano gratuito da Render dormindo), como descrito no topo.
 - **Cancelar lote** é possível enquanto ele não terminou, mesmo com lances. Como o dinheiro só é *comprometido* durante o leilão (nada é debitado antes da liquidação), o estorno é a liberação do valor que o líder tinha comprometido, registrada no extrato como "Estorno". O saldo total não muda, e quem já tinha sido superado não recebe nada, porque já estava liberado. Lotes cancelados somem da vitrine e da auditoria pública.
 - **Depósito** é simulado, limitado a R$ 1.000.000,00 por vez, e só licitantes depositam.
-- **Eventos em tempo real** vivem na memória de um único processo. Com várias instâncias da API, o aviso instantâneo só chegaria a quem estivesse na mesma instância; o polling de 5 segundos cobre o resto. Para escalar, trocaria por Postgres `LISTEN/NOTIFY` ou Redis.
+- **Eventos em tempo real** passam pelo Postgres (`LISTEN/NOTIFY`), então funcionam com mais de uma instância da API. Cada instância ocupa uma conexão do banco só para escutar. O `NOTIFY` não guarda histórico: um aviso enviado enquanto a conexão de uma instância estava reconectando se perde, e o polling de 5 segundos cobre isso.
+- **Limite de tentativas ainda é por processo.** Os contadores de login, cadastro e lances ficam na memória de cada instância (veja "Limite de tentativas"); com mais de uma instância o limite efetivo é multiplicado.
 - **Liquidação preguiçosa:** ler lotes, carteira ou comprovantes dispara a liquidação do que já venceu. É proposital, mas significa que essas leituras podem escrever no banco.
 - **Bloqueio por tentativas:** errar a senha 10 vezes bloqueia aquele e-mail por 15 minutos, de qualquer rede. Um deploy da API zera os contadores (veja "Limite de tentativas").
 - **Token de login** fica no `localStorage` do navegador, o que é simples mas fica exposto a XSS. Não há recuperação de senha (fora do escopo do teste).
@@ -271,4 +305,6 @@ Usei o Claude Code (Anthropic) como assistente de programação ao longo de todo
 
 A conferência foi feita com testes automatizados (API e web, rodando na CI), testes manuais no navegador e um roteiro de verificação rodado no site publicado. Isso pegou erros do assistente, por exemplo uma tela que esperava uma lista quando a API devolvia um objeto com `items`, e arquivos que ficaram de fora de um PR.
 
-As decisões de arquitetura e os limites conhecidos estão neste README, por exemplo: a auditoria não detecta a remoção do último lance antes do encerramento do lote.
+As decisões de arquitetura e os limites conhecidos estão neste README, por exemplo: uma âncora antiga e genuinamente assinada pode ser restaurada por quem tem acesso ao banco.
+
+**Segunda rodada, depois do feedback da avaliação.** A primeira versão do front saiu com a cara típica de uma tela gerada por IA (fundo creme, serifa, botões dourados, cards genéricos) e eu entreguei sem uma etapa de revisão e de decisão visual própria; o feedback apontou isso com razão. Nesta rodada eu refiz a interface com a skill ui-ux-pro-max (usada como fonte de diretrizes de UX, paleta e tipografia, não como gerador de tela pronta), tomei a direção visual e descartei sugestões que repetiam o problema (a fonte serifada). Também revisei o back-end: tipei as linhas do banco (um tipo por consulta, sem `any`), passei a buscar o item do lote no catálogo pelo identificador, adicionei a âncora assinada do último lance, troquei o canal de eventos em memória por `LISTEN/NOTIFY` e separei o encerramento dos lotes num worker. Cada mudança tem teste; a conferência visual foi feita no navegador, em tema escuro e claro e em tela de celular.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Icon } from "./Icon";
 
 export function CopyLink({ path }: { path: string }) {
   const [copied, setCopied] = useState(false);
@@ -16,8 +17,9 @@ export function CopyLink({ path }: { path: string }) {
   }
 
   return (
-    <button type="button" onClick={copy} className="text-muted underline underline-offset-4 hover:text-ink">
-      {copied ? "Link copiado" : "Copiar link para compartilhar"}
+    <button type="button" onClick={copy} className="btn btn-ghost btn-sm">
+      <Icon name={copied ? "check" : "link"} size={16} />
+      <span role="status">{copied ? "Link copiado" : "Copiar link para compartilhar"}</span>
     </button>
   );
 }

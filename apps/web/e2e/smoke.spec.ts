@@ -14,7 +14,8 @@ async function apiLogin(request: APIRequestContext, email: string) {
 }
 
 // Own lot per run, so the test does not depend on (or disturb) the seeded lots.
-const title = `[e2e] smoke ${Date.now()}`;
+// The API reads title and image from the catalog by id, so the lot is found by its id, not by a made-up title.
+const title = "The Red Kerchief";
 let lotId: string;
 
 test.beforeAll(async ({ request }) => {
@@ -23,10 +24,7 @@ test.beforeAll(async ({ request }) => {
   const res = await request.post(`${API}/lots`, {
     headers,
     data: {
-      externalId: "e2e",
-      title,
-      imageUrl: null,
-      attributes: { artist: "Playwright" },
+      externalId: "135382",
       startingBidCents: 1000,
       minIncrementCents: 100,
       startsAt: new Date(now - 3_600_000).toISOString(),
@@ -53,9 +51,8 @@ test("from login to a bid, being outbid in real time, and the public audit", asy
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await expect(page.locator("header")).toContainText("Bruno");
 
-  // find the lot in the showcase by its title and open it
-  await page.getByRole("searchbox").fill(title);
-  await page.getByRole("link", { name: new RegExp(title.replace(/[[\]]/g, "\\$&")) }).click();
+  // open the lot room
+  await page.goto(`/lotes/${lotId}`);
   await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
 
   // refused bid, then a valid one

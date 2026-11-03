@@ -3,7 +3,8 @@ import { config } from "../config.js";
 import { pool } from "../db/pool.js";
 import { HttpError } from "../errors.js";
 import { notifyLotChanged } from "./events.js";
-import { GENESIS_HASH, hashBid } from "./hashChain.js";
+import { GENESIS_HASH, hashBid, signAnchor } from "./hashChain.js";
+import type { BidRow, LotRow, UserFundsRow } from "./rows.js";
 
 const SNIPING_WINDOW_MS = 2 * 60_000;
 const rule = (code: string, message: string, details?: Record<string, unknown>) =>
@@ -36,20 +37,20 @@ export async function placeBid(lotId: string, bidderId: string, amountCents: num
 
 async function placeBidTx(client: PoolClient, lotId: string, bidderId: string, amountCents: number): Promise<PlacedBid> {
   // Locks are always taken lot first, then users ordered by id, so concurrent bids cannot deadlock.
-  const lot = (await client.query("SELECT * FROM lots WHERE id = $1 FOR UPDATE", [lotId])).rows[0];
+  const lot = (await client.query<LotRow>("SELECT * FROM lots WHERE id = $1 FOR UPDATE", [lotId])).rows[0];
   if (!lot || lot.status === "cancelled") throw new HttpError(404, "lot_not_found", "Lote não encontrado.");
 
   // clock_timestamp(), not now(): now() is frozen at transaction start, before waiting for the lock.
-  const now: Date = (await client.query("SELECT clock_timestamp() AS now")).rows[0].now;
+  const now = (await client.query<{ now: Date }>("SELECT clock_timestamp() AS now")).rows[0]!.now;
   if (lot.status === "settled" || now >= lot.ends_at) throw rule("lot_ended", "Este lote já foi encerrado.");
   if (now < lot.starts_at) throw rule("lot_not_started", "Este lote ainda não começou.");
 
   const last = (
-    await client.query("SELECT seq, bidder_id, amount_cents, hash FROM bids WHERE lot_id = $1 ORDER BY seq DESC LIMIT 1", [lotId])
+    await client.query<Pick<BidRow, "seq" | "bidder_id" | "amount_cents" | "hash">>("SELECT seq, bidder_id, amount_cents, hash FROM bids WHERE lot_id = $1 ORDER BY seq DESC LIMIT 1", [lotId])
   ).rows[0];
 
   const ids = [bidderId, ...(last ? [last.bidder_id] : [])].sort();
-  const users = (await client.query("SELECT id, balance_cents, committed_cents FROM users WHERE id = ANY($1) ORDER BY id FOR UPDATE", [ids])).rows;
+  const users = (await client.query<UserFundsRow>("SELECT id, balance_cents, committed_cents FROM users WHERE id = ANY($1) ORDER BY id FOR UPDATE", [ids])).rows;
   const bidder = users.find((u) => u.id === bidderId);
   if (!bidder) throw new HttpError(404, "user_not_found", "Usuário não encontrado.");
 
@@ -84,7 +85,15 @@ async function placeBidTx(client: PoolClient, lotId: string, bidderId: string, a
   // anti-sniping: a bid in the last 2 minutes pushes the end 2 minutes further
   const extended = lot.ends_at.getTime() - now.getTime() <= SNIPING_WINDOW_MS;
   const endsAt = extended ? new Date(lot.ends_at.getTime() + SNIPING_WINDOW_MS) : lot.ends_at;
-  if (extended) await client.query("UPDATE lots SET ends_at = $2 WHERE id = $1", [lotId, endsAt]);
+  // the signed anchor always moves with the newest bid, so a removed last bid shows up in the audit
+  const anchor = signAnchor(lotId, seq, hash, config.hashSecret);
+  await client.query("UPDATE lots SET ends_at = $2, anchor_seq = $3, anchor_hash = $4, anchor_sig = $5 WHERE id = $1", [
+    lotId,
+    endsAt,
+    anchor.seq,
+    anchor.hash,
+    anchor.sig,
+  ]);
 
   return { seq, amountCents, placedAt, endsAt: endsAt.toISOString(), extended };
 }

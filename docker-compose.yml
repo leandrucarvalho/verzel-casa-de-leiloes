@@ -27,6 +27,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-local-jwt-secret}
       HASH_SECRET: ${HASH_SECRET:-local-hash-secret}
       SEED_ON_START: "1"
+      # the lots are closed by the separate worker service below
+      EMBEDDED_WORKER: "0"
     ports:
       - "3333:3333"
     depends_on:
@@ -36,6 +38,21 @@ services:
       test: ["CMD", "wget", "-qO-", "http://localhost:3333/health"]
       interval: 5s
       retries: 10
+    restart: unless-stopped
+
+  # Closes lots that reached their end time, away from the HTTP process.
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "dist/worker.js"]
+    environment:
+      DATABASE_URL: postgres://leilao:leilao@db:5432/leilao
+      JWT_SECRET: ${JWT_SECRET:-local-jwt-secret}
+      HASH_SECRET: ${HASH_SECRET:-local-hash-secret}
+    depends_on:
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
   web:
