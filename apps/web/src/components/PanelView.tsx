@@ -84,7 +84,7 @@ export function PanelView() {
               const meta = visuals[visualOf(l, now)];
               const cancelled = l.status === "cancelled";
               return (
-                <li key={l.id} className={`card relative flex flex-wrap items-center justify-between gap-4 overflow-hidden py-4 pr-4 pl-6 ${cancelled ? "opacity-70" : ""}`}>
+                <li key={l.id} className={`card relative flex flex-wrap items-center justify-between gap-4 overflow-hidden py-4 pr-4 pl-6`}>
                   <div className={`absolute inset-y-0 left-0 w-1.5 ${meta.bar}`} aria-hidden />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { api, ApiError } from "@/lib/api";
 import { parseBRLToCents } from "@/lib/format";
 import type { Lot, LotStatus } from "@/lib/types";
@@ -21,6 +21,7 @@ const sorts = [
 ] as const;
 type Sort = (typeof sorts)[number]["id"];
 
+const STORE = "leilao.showcase";
 const POLL_MS = 10_000;
 const PAGE_SIZE = 12;
 
@@ -35,6 +36,43 @@ export function Showcase() {
   const [paging, setPaging] = useState({ key: "", pages: 1 });
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+
+  // Coming back from a lot room restores the tab and filters instead of resetting them.
+  // shortcut: kept in sessionStorage, so a shared link does not carry the filters; move them to the URL if that matters.
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    // after mount, not during hydration, so the server and first client render still match
+    const id = setTimeout(() => {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(STORE) ?? "null");
+        if (saved) {
+          if (tabs.some((t) => t.id === saved.tab)) setTab(saved.tab);
+          if (sorts.some((s) => s.id === saved.sort)) setSort(saved.sort);
+          setQuery(String(saved.query ?? ""));
+          setMinInput(String(saved.minInput ?? ""));
+          setMaxInput(String(saved.maxInput ?? ""));
+        }
+      } catch {}
+      setRestored(true);
+    }, 0);
+    return () => clearTimeout(id);
+  }, []);
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      sessionStorage.setItem(STORE, JSON.stringify({ tab, sort, query, minInput, maxInput }));
+    } catch {}
+  }, [restored, tab, sort, query, minInput, maxInput]);
+
+  // arrow keys move between tabs (WAI-ARIA tabs pattern)
+  function onTabKey(e: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = tabs[(index + step + tabs.length) % tabs.length]!;
+    setTab(next.id);
+    document.getElementById(`tab-${next.id}`)?.focus();
+  }
 
   // debounce the text boxes so we do not query on every keystroke
   useEffect(() => {
@@ -107,11 +145,15 @@ export function Showcase() {
       </div>
 
       <div role="tablist" aria-label="Fase dos lotes" className="mt-8 flex gap-1 border-b border-line">
-        {tabs.map((t) => (
+        {tabs.map((t, i) => (
           <button
             key={t.id}
+            id={`tab-${t.id}`}
             role="tab"
             aria-selected={tab === t.id}
+            aria-controls="lots-panel"
+            tabIndex={tab === t.id ? 0 : -1}
+            onKeyDown={(e) => onTabKey(e, i)}
             onClick={() => setTab(t.id)}
             className={`-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors ${
               tab === t.id ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
@@ -149,7 +191,7 @@ export function Showcase() {
         )}
       </div>
 
-      <div role="tabpanel" className="mt-6">
+      <div role="tabpanel" id="lots-panel" aria-labelledby={`tab-${tab}`} className="mt-6">
         {error && !lots ? (
           <div role="alert" className="card p-6">
             <p className="text-danger">{error}</p>
