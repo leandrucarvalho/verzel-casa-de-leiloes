@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "@/lib/api";
 import { formatBRL, parseBRLToCents } from "@/lib/format";
+import { Icon } from "./Icon";
 
 interface CatalogItem {
   externalId: string;
@@ -11,8 +12,6 @@ interface CatalogItem {
   imageUrl: string;
   attributes: Record<string, string>;
 }
-
-const field = "w-full rounded-lg border border-line bg-paper px-3 py-2 outline-none focus:border-brass";
 
 // value for <input type="datetime-local"> in the browser's timezone
 const localValue = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -58,12 +57,10 @@ export function LotCreator({ onCreated }: { onCreated: () => void }) {
     setBusy(true);
     setMessage(null);
     try {
+      // only the item id travels: the server reads title, image and attributes from the catalog itself
       await api("/lots", {
         body: {
           externalId: picked.externalId,
-          title: picked.title,
-          imageUrl: picked.imageUrl,
-          attributes: picked.attributes,
           startingBidCents,
           minIncrementCents,
           startsAt: startsAt.toISOString(),
@@ -83,19 +80,20 @@ export function LotCreator({ onCreated }: { onCreated: () => void }) {
   const now = new Date();
 
   return (
-    <section className="rounded-xl border border-line bg-surface p-5">
-      <h2 className="text-xl font-semibold">Novo lote</h2>
+    <section className="card p-5 sm:p-6">
+      <h2 className="text-xl font-bold">Novo lote</h2>
       <p className="mt-1 text-sm text-muted">Busque uma obra no acervo do Cleveland Museum of Art e defina as regras do leilão.</p>
 
-      <form onSubmit={search} className="mt-4 flex gap-2">
+      <form onSubmit={search} className="mt-4 flex flex-col gap-2 sm:flex-row">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Ex.: monet, hokusai, bronze"
           aria-label="Buscar no catálogo"
-          className={field}
+          className="field"
         />
-        <button type="submit" disabled={searching} className="rounded-full bg-brass px-5 py-2 font-medium text-brass-ink disabled:opacity-60">
+        <button type="submit" disabled={searching} className="btn btn-brand">
+          <Icon name="search" size={18} />
           {searching ? "Buscando…" : "Buscar"}
         </button>
       </form>
@@ -109,10 +107,10 @@ export function LotCreator({ onCreated }: { onCreated: () => void }) {
                 type="button"
                 onClick={() => setPicked(it)}
                 aria-pressed={picked?.externalId === it.externalId}
-                className={`w-full rounded-lg border p-2 text-left text-sm hover:border-brass ${picked?.externalId === it.externalId ? "border-brass bg-brass/10" : "border-line"}`}
+                className="w-full rounded-xl border border-line p-2 text-left text-sm transition-colors hover:border-brand aria-pressed:border-brand aria-pressed:bg-brand/10"
               >
-                <span className="relative block aspect-[4/5] overflow-hidden rounded bg-paper">
-                  <Image src={it.imageUrl} alt="" fill unoptimized sizes="200px" className="object-contain" />
+                <span className="relative block aspect-[4/5] overflow-hidden rounded-lg bg-mat">
+                  <Image src={it.imageUrl} alt="" fill unoptimized sizes="200px" className="object-contain p-1" />
                 </span>
                 <span className="mt-2 line-clamp-2 block font-medium">{it.title}</span>
                 <span className="block truncate text-xs text-muted">{it.attributes.artist ?? "Artista desconhecido"}</span>
@@ -124,33 +122,35 @@ export function LotCreator({ onCreated }: { onCreated: () => void }) {
 
       {picked && (
         <form onSubmit={create} className="mt-6 space-y-4 border-t border-line pt-5" noValidate>
-          <p className="font-medium">Lote: {picked.title}</p>
+          <p className="font-semibold">Lote: {picked.title}</p>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               Lance inicial (R$)
-              <input name="starting" inputMode="decimal" placeholder="1.000,00" className={field} />
+              <input name="starting" inputMode="decimal" placeholder="1.000,00" className="field mt-1" />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               Incremento mínimo (R$)
-              <input name="increment" inputMode="decimal" placeholder="50,00" className={field} />
+              <input name="increment" inputMode="decimal" placeholder="50,00" className="field mt-1" />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               Início
-              <input name="startsAt" type="datetime-local" defaultValue={localValue(now)} className={field} />
+              <input name="startsAt" type="datetime-local" defaultValue={localValue(now)} className="field mt-1" />
             </label>
-            <label className="block text-sm">
+            <label className="block text-sm font-medium">
               Fim
-              <input name="endsAt" type="datetime-local" defaultValue={localValue(new Date(now.getTime() + 24 * 3_600_000))} className={field} />
+              <input name="endsAt" type="datetime-local" defaultValue={localValue(new Date(now.getTime() + 24 * 3_600_000))} className="field mt-1" />
             </label>
           </div>
-          <button type="submit" disabled={busy} className="rounded-full bg-brass px-5 py-2 font-medium text-brass-ink disabled:opacity-60">
+          <button type="submit" disabled={busy} className="btn btn-bid">
+            <Icon name="gavel" size={18} />
             {busy ? "Criando…" : "Criar lote"}
           </button>
         </form>
       )}
 
       {message && (
-        <p role={message.ok ? "status" : "alert"} className={`mt-4 text-sm ${message.ok ? "text-live" : "text-danger"}`}>
+        <p role={message.ok ? "status" : "alert"} className={`mt-4 flex items-start gap-2 text-sm font-medium ${message.ok ? "text-live" : "text-danger"}`}>
+          <Icon name={message.ok ? "check" : "alert"} size={18} className="mt-0.5 shrink-0" />
           {message.text}
         </p>
       )}

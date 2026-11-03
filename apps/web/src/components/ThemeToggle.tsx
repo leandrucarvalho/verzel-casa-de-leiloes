@@ -1,9 +1,10 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { Icon } from "./Icon";
 
-// Runs before hydration (see layout) so there is no flash of the wrong theme.
-export const themeScript = `try{var t=localStorage.getItem("leilao.theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}`;
+// Runs before hydration (see layout) so there is no flash of the wrong theme. Dark unless the user chose light.
+export const themeScript = `try{if(localStorage.getItem("leilao.theme")!=="light")document.documentElement.classList.add("dark")}catch(e){document.documentElement.classList.add("dark")}`;
 
 function subscribe(onChange: () => void) {
   const observer = new MutationObserver(onChange);
@@ -15,7 +16,7 @@ export function ThemeToggle() {
   const dark = useSyncExternalStore(
     subscribe,
     () => document.documentElement.classList.contains("dark"),
-    () => false,
+    () => true,
   );
 
   function toggle() {
@@ -30,9 +31,9 @@ export function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label={dark ? "Mudar para o tema claro" : "Mudar para o tema escuro"}
-      className="rounded-full border border-line px-3 py-1.5 text-sm text-muted hover:text-ink"
+      className="btn btn-ghost !min-w-11 !p-0"
     >
-      {dark ? "☀ Claro" : "☾ Escuro"}
+      <Icon name={dark ? "sun" : "moon"} />
     </button>
   );
 }

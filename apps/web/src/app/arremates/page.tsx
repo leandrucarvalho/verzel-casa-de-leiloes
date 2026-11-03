@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/PageHeader";
 import { RequireRole } from "@/components/RequireRole";
 import { WinsView } from "@/components/WinsView";
 
@@ -6,7 +7,7 @@ export const metadata = { title: "Meus arremates · Casa de Leilões" };
 export default function WinsPage() {
   return (
     <RequireRole role="bidder">
-      <h1 className="mb-6 text-3xl font-semibold">Meus arremates</h1>
+      <PageHeader title="Meus arremates" lead="Lotes em que você deu lances, com a sua posição e os comprovantes." />
       <WinsView />
     </RequireRole>
   );
